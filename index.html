@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora de Financiamento</title>
+  <title>Calculadora PRICE Avançada</title>
   <meta name="description" content="Simule financiamentos pela Tabela Price, com parcelas crescentes e balões personalizados." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -140,6 +140,33 @@
     .conditional.visible { display: block; }
     @keyframes fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
+    .curve-builder {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fcfcff;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .curve-builder-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 13px; }
+    .curve-builder-head strong { display: block; font-size: 14px; }
+    .curve-builder-head span { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; line-height: 1.4; }
+    .curve-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .curve-preset {
+      border: 1px solid var(--border); background: white; color: var(--muted);
+      border-radius: 999px; padding: 7px 9px; font: inherit; font-size: 10px;
+      font-weight: 700; cursor: pointer; transition: .18s;
+    }
+    .curve-preset:hover, .curve-preset.active { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+    .curve-editor-wrap {
+      height: 190px; position: relative; border-radius: 12px;
+      background: linear-gradient(180deg, rgba(82,79,160,.035), rgba(82,79,160,0));
+      overflow: hidden; cursor: grab; touch-action: none;
+    }
+    .curve-editor-wrap.dragging { cursor: grabbing; }
+    #curveEditor:focus-visible { outline: 3px solid rgba(82,79,160,.24); outline-offset: -3px; border-radius: 12px; }
+    .curve-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 600; padding: 7px 7px 0; }
+    .curve-live { color: var(--success); font-size: 10px; font-weight: 800; white-space: nowrap; }
+
     .balloons { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 19px; }
     .balloons-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .balloons-head strong { font-size: 14px; }
@@ -215,7 +242,7 @@
 <body>
   <main class="page">
     <section class="hero">
-      <div class="brand"><div class="brand-mark">F</div><div class="brand-name">Financia Fácil</div></div>
+      <div class="brand"><div class="brand-mark">P</div><div class="brand-name">Calculadora PRICE Avançada</div></div>
       <div class="hero-content">
         <div class="eyebrow">Simulação inteligente</div>
         <h1>Financiamento sob medida para cada negociação.</h1>
@@ -253,22 +280,28 @@
           <label>Modelo de parcelas</label>
           <div class="segmented">
             <button type="button" class="active" data-mode="price">Price tradicional</button>
-            <button type="button" data-mode="growing">Parcelas crescentes</button>
+            <button type="button" data-mode="growing">Curva interativa</button>
           </div>
         </div>
 
         <div id="growingOptions" class="conditional">
-          <div class="field-row">
-            <div class="field">
-              <label for="growthRate">Crescimento</label>
-              <div class="input-wrap"><input id="growthRate" type="number" value="0.5" min="0" step="0.01" class="has-suffix"><span class="suffix">% a.m.</span></div>
+          <div class="curve-builder">
+            <div class="curve-builder-head">
+              <div><strong>Desenhe a evolução das parcelas</strong><span>Arraste os pontos para alterar a inclinação.</span></div>
+              <div class="curve-live">● RECÁLCULO AO VIVO</div>
             </div>
-            <div class="field">
-              <label for="firstPayment">1ª parcela</label>
-              <div class="input-wrap"><span class="prefix">R$</span><input id="firstPayment" class="has-prefix money" value="4.000,00" inputmode="decimal"></div>
+            <div class="curve-presets" aria-label="Formatos prontos de curva">
+              <button type="button" class="curve-preset active" data-curve-preset="linear">Crescente</button>
+              <button type="button" class="curve-preset" data-curve-preset="hill">Sobe e desce</button>
+              <button type="button" class="curve-preset" data-curve-preset="fast-start">Rápido → suave</button>
+              <button type="button" class="curve-preset" data-curve-preset="fast-end">Suave → rápido</button>
             </div>
+            <div class="curve-editor-wrap" id="curveEditorWrap">
+              <canvas id="curveEditor" tabindex="0" role="img" aria-label="Editor da curva das parcelas. Arraste os seis pontos; use as setas esquerda e direita para selecionar e para cima e para baixo para ajustar."></canvas>
+            </div>
+            <div class="curve-axis"><span>Primeira parcela</span><span>Última parcela</span></div>
           </div>
-          <div class="footnote">A primeira parcela serve como referência. O sistema ajusta proporcionalmente o fluxo para liquidar todo o saldo.</div>
+          <div class="footnote">A altura representa o peso relativo de cada parcela. O sistema converte o desenho em valores reais e ajusta o fluxo para liquidar todo o saldo.</div>
         </div>
 
         <div class="switch-line">
@@ -344,13 +377,153 @@
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const number = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let mode = 'price';
-  let paymentChart, breakdownChart, lastSchedule = [];
+  let paymentChart, breakdownChart, curveChart, lastSchedule = [];
+  let activeCurvePoint = 0, curveDragging = false, curveAnimationFrame = null;
+
+  const curvePresets = {
+    linear: [0.60, 0.85, 1.10, 1.35, 1.60, 1.85],
+    hill: [0.65, 1.10, 1.75, 1.55, 1.05, 0.75],
+    'fast-start': [0.55, 1.10, 1.50, 1.72, 1.86, 1.95],
+    'fast-end': [0.55, 0.62, 0.78, 1.05, 1.48, 2.15]
+  };
+  let curveControls = [...curvePresets.linear];
 
   const parseMoney = value => Number(String(value).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
   const formatInputMoney = input => {
     const raw = input.value.replace(/\D/g, '');
     input.value = number.format((Number(raw) || 0) / 100);
   };
+
+  function initCurveEditor() {
+    if (curveChart) {
+      curveChart.resize();
+      return;
+    }
+
+    curveChart = new Chart(document.getElementById('curveEditor'), {
+      type: 'line',
+      data: {
+        labels: ['Início', '20%', '40%', '60%', '80%', 'Fim'],
+        datasets: [{
+          data: curveControls,
+          borderColor: '#524fa0',
+          backgroundColor: 'rgba(82,79,160,.12)',
+          borderWidth: 3,
+          fill: true,
+          tension: .34,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointHitRadius: 18,
+          pointBackgroundColor: context => context.dataIndex === activeCurvePoint ? '#151728' : '#ffffff',
+          pointBorderColor: '#524fa0',
+          pointBorderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { intersect: false, mode: 'nearest' },
+        layout: { padding: { top: 15, right: 14, bottom: 8, left: 4 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: context => `Peso relativo: ${Number(context.raw).toFixed(2)}×` } }
+        },
+        scales: {
+          x: { display: false },
+          y: {
+            min: .25,
+            max: 2.5,
+            border: { display: false },
+            grid: { color: 'rgba(82,79,160,.08)' },
+            ticks: { stepSize: .5, callback: value => `${Number(value).toFixed(1)}×`, font: { size: 9 } }
+          }
+        }
+      }
+    });
+
+    const canvas = document.getElementById('curveEditor');
+    canvas.addEventListener('pointerdown', startCurveDrag);
+    canvas.addEventListener('pointermove', moveCurveDrag);
+    canvas.addEventListener('pointerup', endCurveDrag);
+    canvas.addEventListener('pointercancel', endCurveDrag);
+    canvas.addEventListener('keydown', handleCurveKeyboard);
+  }
+
+  function selectCurvePoint(index) {
+    activeCurvePoint = Math.max(0, Math.min(curveControls.length - 1, index));
+    if (curveChart) curveChart.update('none');
+  }
+
+  function startCurveDrag(event) {
+    const point = curveChart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, false)[0];
+    if (!point) return;
+    event.preventDefault();
+    selectCurvePoint(point.index);
+    curveDragging = true;
+    document.getElementById('curveEditorWrap').classList.add('dragging');
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCurvePointFromPointer(event);
+  }
+
+  function moveCurveDrag(event) {
+    if (!curveDragging) return;
+    event.preventDefault();
+    setCurvePointFromPointer(event);
+  }
+
+  function endCurveDrag(event) {
+    if (!curveDragging) return;
+    curveDragging = false;
+    document.getElementById('curveEditorWrap').classList.remove('dragging');
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function setCurvePointFromPointer(event) {
+    const value = curveChart.scales.y.getValueForPixel(event.offsetY);
+    curveControls[activeCurvePoint] = Math.max(.25, Math.min(2.5, Math.round(value * 20) / 20));
+    curveChart.data.datasets[0].data = curveControls;
+    curveChart.update('none');
+    document.querySelectorAll('.curve-preset').forEach(button => button.classList.remove('active'));
+    queueCurveSimulation();
+  }
+
+  function handleCurveKeyboard(event) {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      selectCurvePoint(activeCurvePoint + (event.key === 'ArrowRight' ? 1 : -1));
+      return;
+    }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowUp' ? 1 : -1;
+      curveControls[activeCurvePoint] = Math.max(.25, Math.min(2.5, curveControls[activeCurvePoint] + direction * .05));
+      curveChart.data.datasets[0].data = curveControls;
+      curveChart.update('none');
+      document.querySelectorAll('.curve-preset').forEach(button => button.classList.remove('active'));
+      queueCurveSimulation();
+    }
+  }
+
+  function queueCurveSimulation() {
+    if (curveAnimationFrame) cancelAnimationFrame(curveAnimationFrame);
+    curveAnimationFrame = requestAnimationFrame(() => {
+      curveAnimationFrame = null;
+      simulate();
+    });
+  }
+
+  function curveWeightAt(progress) {
+    const scaled = Math.max(0, Math.min(1, progress)) * (curveControls.length - 1);
+    const index = Math.min(curveControls.length - 2, Math.floor(scaled));
+    const t = scaled - index;
+    const p0 = curveControls[Math.max(0, index - 1)];
+    const p1 = curveControls[index];
+    const p2 = curveControls[Math.min(curveControls.length - 1, index + 1)];
+    const p3 = curveControls[Math.min(curveControls.length - 1, index + 2)];
+    const value = .5 * ((2 * p1) + (-p0 + p2) * t + (2*p0 - 5*p1 + 4*p2 - p3) * t*t + (-p0 + 3*p1 - 3*p2 + p3) * t*t*t);
+    return Math.max(.1, value);
+  }
 
   document.querySelectorAll('.money').forEach(input => input.addEventListener('input', () => formatInputMoney(input)));
 
@@ -360,6 +533,20 @@
       button.classList.add('active');
       mode = button.dataset.mode;
       document.getElementById('growingOptions').classList.toggle('visible', mode === 'growing');
+      if (mode === 'growing') requestAnimationFrame(initCurveEditor);
+      simulate();
+    });
+  });
+
+  document.querySelectorAll('.curve-preset').forEach(button => {
+    button.addEventListener('click', () => {
+      curveControls = [...curvePresets[button.dataset.curvePreset]];
+      document.querySelectorAll('.curve-preset').forEach(item => item.classList.toggle('active', item === button));
+      if (curveChart) {
+        curveChart.data.datasets[0].data = curveControls;
+        curveChart.update('none');
+      }
+      simulate();
     });
   });
 
@@ -422,9 +609,10 @@
       const p = pricePayment(principal, rate, months);
       base = Array(months).fill(p);
     } else {
-      const firstRef = Math.max(0.01, parseMoney(document.getElementById('firstPayment').value));
-      const growth = Math.max(0, Number(document.getElementById('growthRate').value) || 0) / 100;
-      base = Array.from({ length: months }, (_, i) => firstRef * Math.pow(1 + growth, i));
+      base = Array.from(
+        { length: months },
+        (_, i) => curveWeightAt(months === 1 ? 0 : i / (months - 1))
+      );
     }
 
     const closingBalance = factor => {
