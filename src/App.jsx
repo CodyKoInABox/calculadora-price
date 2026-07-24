@@ -7,7 +7,7 @@ import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
 import AbComparePanel from './components/AbComparePanel'
-import { AuthorCredit, SiteFooter } from './components/SiteMeta'
+import { AuthorCredit, FeedbackLink, SiteFooter } from './components/SiteMeta'
 
 let extraSeq = 1
 
@@ -660,7 +660,10 @@ export default function App() {
             Compare Price e SAC, cenários A vs B (taxa, prazo, entrada e extras), curva interativa — no navegador, sem cadastro.
           </p>
         </div>
-        <AuthorCredit />
+        <div className="hero-meta">
+          <AuthorCredit />
+          <FeedbackLink />
+        </div>
       </header>
 
       <section className="workspace">

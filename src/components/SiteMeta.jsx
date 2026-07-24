@@ -11,6 +11,14 @@ function GitHubIcon({ size = 18 }) {
   )
 }
 
+function FeedbackIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+      <path d="M8 1.5A6.5 6.5 0 0 0 1.5 8c0 1.2.33 2.32.9 3.28L1.7 14.3a.5.5 0 0 0 .6.7l3.2-.85A6.5 6.5 0 1 0 8 1.5m0 1a5.5 5.5 0 1 1 0 11 5.47 5.47 0 0 1-2.72-.72.5.5 0 0 0-.4-.05l-2.3.61.61-2.25a.5.5 0 0 0-.05-.42A5.47 5.47 0 0 1 2.5 8 5.5 5.5 0 0 1 8 2.5M5.25 7.25a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m2.75 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m2.75 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5" />
+    </svg>
+  )
+}
+
 function formatUpdatedAt(iso) {
   if (!iso) return null
   try {
@@ -56,6 +64,20 @@ export function TestBadge() {
   )
 }
 
+export function FeedbackLink({ variant = 'hero' }) {
+  return (
+    <a
+      className={variant === 'footer' ? 'feedback-link footer' : 'feedback-link'}
+      href={`${REPO}/issues/new`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <FeedbackIcon />
+      <span>Reportar bug</span>
+    </a>
+  )
+}
+
 export function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -69,7 +91,10 @@ export function SiteFooter() {
           Simulação estimativa — não substitui análise financeira profissional.
         </p>
       </div>
-      <TestBadge />
+      <div className="site-footer-actions">
+        <FeedbackLink variant="footer" />
+        <TestBadge />
+      </div>
     </footer>
   )
 }

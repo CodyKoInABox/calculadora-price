@@ -58,7 +58,19 @@ body {
   box-shadow: 0 0 0 36px rgba(255,255,255,.035), 0 0 0 72px rgba(255,255,255,.025);
 }
 
-.hero-copy, .author-credit { position: relative; z-index: 1; }
+.hero-copy,
+.hero-meta,
+.author-credit,
+.feedback-link { position: relative; z-index: 1; }
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
 .hero h1 {
   font-family: Manrope;
@@ -106,6 +118,54 @@ body {
 }
 
 .author-credit svg { flex-shrink: 0; }
+
+.feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,255,255,.88);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  transition: background .18s, border-color .18s;
+  flex-shrink: 0;
+}
+
+.feedback-link:hover {
+  background: rgba(255,255,255,.2);
+  border-color: rgba(255,255,255,.36);
+  color: white;
+}
+
+.feedback-link svg { flex-shrink: 0; }
+
+.feedback-link.footer {
+  background: #f4f5fa;
+  border-color: var(--border);
+  color: var(--text);
+  backdrop-filter: none;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.feedback-link.footer:hover {
+  background: var(--primary-soft);
+  border-color: #d9daf0;
+  color: var(--primary-dark);
+}
+
+.site-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 
 .test-badge {
   display: inline-flex;
@@ -612,6 +672,7 @@ tr.balloon-row td { background: #fff9ee; }
   .form-panel,
   .site-footer,
   .author-credit,
+  .feedback-link,
   .table-actions,
   .calculate,
   .share-link,
