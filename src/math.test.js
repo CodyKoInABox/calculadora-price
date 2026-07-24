@@ -192,6 +192,75 @@ describe('simulateFinancing — balões', () => {
   })
 })
 
+describe('simulateFinancing — SAC', () => {
+  it('splits principal evenly when rate is 0', () => {
+    const r = runSim({ property: 120_000, down: 0, months: 12, rate: 0, mode: 'sac' })
+    expect(r.error).toBeUndefined()
+    expect(r.totalInterest).toBeCloseTo(0, 8)
+    for (const row of r.schedule) {
+      expect(row.payment).toBeCloseTo(10_000, 6)
+      expect(row.interest).toBeCloseTo(0, 8)
+      expect(row.amortization).toBeCloseTo(10_000, 6)
+    }
+    expect(r.schedule.at(-1).balance).toBeCloseTo(0, 6)
+  })
+
+  it('keeps constant amortization and declining payment (100k @ 1% × 12)', () => {
+    const principal = 100_000
+    const rate = 0.01
+    const months = 12
+    const amort = principal / months
+    const r = runSim({ property: principal, down: 0, months, rate, mode: 'sac' })
+
+    expect(r.error).toBeUndefined()
+    expect(r.schedule[0].payment).toBeCloseTo(amort + principal * rate, 6)
+    expect(r.schedule[0].amortization).toBeCloseTo(amort, 6)
+
+    for (let i = 1; i < r.schedule.length; i++) {
+      expect(r.schedule[i].payment).toBeLessThan(r.schedule[i - 1].payment)
+      if (i < months - 1) {
+        expect(r.schedule[i].amortization).toBeCloseTo(amort, 4)
+      }
+    }
+
+    const amortSum = r.schedule.reduce((s, row) => s + row.amortization, 0)
+    expect(amortSum).toBeCloseTo(principal, 2)
+    expect(r.schedule.at(-1).balance).toBeCloseTo(0, 2)
+    expect(r.schedule.at(-1).payment).toBeLessThan(r.schedule[0].payment)
+  })
+
+  it('pays less total interest than Price for the same inputs', () => {
+    const shared = { property: 300_000, down: 60_000, months: 36, rate: 0.01 }
+    const price = runSim({ ...shared, mode: 'price' })
+    const sac = runSim({ ...shared, mode: 'sac' })
+
+    expect(sac.totalInterest).toBeLessThan(price.totalInterest)
+    expect(sac.schedule[0].payment).toBeGreaterThan(price.schedule[0].payment)
+    expect(sac.schedule.at(-1).payment).toBeLessThan(price.schedule.at(-1).payment)
+  })
+
+  it('applies balloon in the chosen month and still zeros balance', () => {
+    const balloons = new Map([[6, 20_000]])
+    const r = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'sac',
+      balloons
+    })
+
+    expect(r.error).toBeUndefined()
+    const row6 = r.schedule.find(row => row.month === 6)
+    expect(row6.balloon).toBeCloseTo(20_000, 2)
+    expect(r.totalBalloon).toBeCloseTo(20_000, 2)
+    expect(r.schedule.at(-1).balance).toBeCloseTo(0, 2)
+
+    const amortSum = r.schedule.reduce((s, row) => s + row.amortization, 0)
+    expect(amortSum).toBeCloseTo(r.principal, 2)
+  })
+})
+
 describe('simulateFinancing — curva crescente', () => {
   it('zeros balance for each curve preset', () => {
     for (const [name, controls] of Object.entries(curvePresets)) {

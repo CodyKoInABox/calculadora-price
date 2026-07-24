@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { curvePresets, parseMoney, simulateFinancing } from './math'
-import { formatMoneyInput, exportScheduleCsv, number } from './format'
+import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, number } from './format'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
+import ComparePanel from './components/ComparePanel'
 import { AuthorCredit, SiteFooter } from './components/SiteMeta'
 
 let balloonSeq = 1
@@ -29,6 +30,7 @@ export default function App() {
   const [balloonEnabled, setBalloonEnabled] = useState(false)
   const [balloons, setBalloons] = useState([])
   const [result, setResult] = useState(null)
+  const [compareResult, setCompareResult] = useState(null)
   const curveRaf = useRef(null)
   const propertyId = useId()
   const downId = useId()
@@ -44,6 +46,27 @@ export default function App() {
     const property = parseMoney(overrides.propertyValue ?? propertyValue)
     const down = parseMoney(overrides.downPayment ?? downPayment)
     const rate = Math.max(0, Number(overrides.interest ?? interest) || 0) / 100
+    const balloonMap = balloonsToMap(nextEnabled, nextBalloons, nextMonths)
+
+    if (nextMode === 'compare') {
+      const shared = {
+        property,
+        down,
+        months: nextMonths,
+        rate,
+        balloons: balloonMap,
+        curveControls: nextControls
+      }
+      const priceOut = simulateFinancing({ ...shared, mode: 'price' })
+      const sacOut = simulateFinancing({ ...shared, mode: 'sac' })
+      if (priceOut.error || sacOut.error) {
+        alert(priceOut.error || sacOut.error)
+        return
+      }
+      setCompareResult({ price: priceOut, sac: sacOut })
+      setResult(null)
+      return
+    }
 
     const out = simulateFinancing({
       property,
@@ -51,7 +74,7 @@ export default function App() {
       months: nextMonths,
       rate,
       mode: nextMode,
-      balloons: balloonsToMap(nextEnabled, nextBalloons, nextMonths),
+      balloons: balloonMap,
       curveControls: nextControls
     })
 
@@ -60,6 +83,7 @@ export default function App() {
       return
     }
     setResult(out)
+    setCompareResult(null)
   }, [mode, curveControls, balloons, balloonEnabled, months, propertyValue, downPayment, interest])
 
   useEffect(() => {
@@ -99,13 +123,18 @@ export default function App() {
 
   const moneyChange = setter => e => setter(formatMoneyInput(e.target.value))
 
+  const selectMode = next => {
+    setMode(next)
+    runSimulate({ mode: next })
+  }
+
   return (
     <main className="page">
       <header className="hero">
         <div className="hero-copy">
           <h1>Calculadora PRICE Avançada</h1>
           <p className="hero-lead">
-            Simule financiamentos pela Tabela Price, com curva interativa e balões — no navegador, sem cadastro.
+            Compare Price e SAC no mesmo principal, taxa e prazo — e simule curva interativa ou balões, no navegador, sem cadastro.
           </p>
         </div>
         <AuthorCredit />
@@ -151,12 +180,15 @@ export default function App() {
 
           <div className="field">
             <label>Modelo de parcelas</label>
-            <div className="segmented">
-              <button type="button" className={mode === 'price' ? 'active' : ''} onClick={() => { setMode('price'); runSimulate({ mode: 'price' }) }}>
-                Price tradicional
+            <div className="segmented segmented-3">
+              <button type="button" className={mode === 'price' ? 'active' : ''} onClick={() => selectMode('price')}>
+                Price
               </button>
-              <button type="button" className={mode === 'growing' ? 'active' : ''} onClick={() => { setMode('growing'); runSimulate({ mode: 'growing' }) }}>
-                Curva interativa
+              <button type="button" className={mode === 'growing' ? 'active' : ''} onClick={() => selectMode('growing')}>
+                Curva
+              </button>
+              <button type="button" className={mode === 'compare' ? 'active' : ''} onClick={() => selectMode('compare')}>
+                Price × SAC
               </button>
             </div>
           </div>
@@ -224,11 +256,19 @@ export default function App() {
         </aside>
 
         <div className="results">
-          <ResultsPanel
-            result={result}
-            mode={mode}
-            onExport={() => exportScheduleCsv(result?.schedule)}
-          />
+          {mode === 'compare' ? (
+            <ComparePanel
+              price={compareResult?.price}
+              sac={compareResult?.sac}
+              onExport={() => exportCompareCsv(compareResult?.price?.schedule, compareResult?.sac?.schedule)}
+            />
+          ) : (
+            <ResultsPanel
+              result={result}
+              mode={mode}
+              onExport={() => exportScheduleCsv(result?.schedule)}
+            />
+          )}
         </div>
       </section>
 

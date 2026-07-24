@@ -36,7 +36,7 @@ export function curveWeightAt(progress, curveControls) {
 }
 
 /**
- * @param {{ property: number, down: number, months: number, rate: number, mode: 'price'|'growing', balloons: Map<number, number>, curveControls: number[] }} input
+ * @param {{ property: number, down: number, months: number, rate: number, mode: 'price'|'growing'|'sac', balloons: Map<number, number>, curveControls: number[] }} input
  */
 export function simulateFinancing({ property, down, months, rate, mode, balloons, curveControls }) {
   const principal = property - down
@@ -46,6 +46,11 @@ export function simulateFinancing({ property, down, months, rate, mode, balloons
   }
 
   const totalBalloonsPlanned = [...balloons.values()].reduce((a, b) => a + b, 0)
+
+  if (mode === 'sac') {
+    return simulateSac({ property, down, principal, months, rate, balloons, totalBalloonsPlanned })
+  }
+
   const schedule = []
 
   let base = []
@@ -89,6 +94,52 @@ export function simulateFinancing({ property, down, months, rate, mode, balloons
     if (regular + balloon > amountDue) {
       if (balloon >= amountDue) { balloon = amountDue; regular = 0 }
       else regular = amountDue - balloon
+    }
+
+    const amortization = Math.max(0, regular - interest) + balloon
+    balance = Math.max(0, amountDue - regular - balloon)
+    totalInterest += interest
+    totalRegular += regular
+    totalBalloon += balloon
+    schedule.push({ month: m, payment: regular, interest, amortization, balloon, balance })
+  }
+
+  return {
+    property,
+    down,
+    principal,
+    months,
+    totalInterest,
+    totalRegular,
+    totalBalloon,
+    totalBalloonsPlanned,
+    schedule
+  }
+}
+
+/** SAC: constant amortization (principal/n), declining interest + payment. */
+function simulateSac({ property, down, principal, months, rate, balloons, totalBalloonsPlanned }) {
+  const amortBase = principal / months
+  const schedule = []
+  let balance = principal
+  let totalInterest = 0
+  let totalRegular = 0
+  let totalBalloon = 0
+
+  for (let m = 1; m <= months; m++) {
+    const interest = balance * rate
+    const amountDue = balance + interest
+    let amort = m === months ? balance : Math.min(amortBase, balance)
+    let regular = amort + interest
+    let balloon = balloons.get(m) || 0
+
+    if (regular + balloon > amountDue) {
+      if (balloon >= amountDue) {
+        balloon = amountDue
+        regular = 0
+      } else {
+        regular = amountDue - balloon
+      }
     }
 
     const amortization = Math.max(0, regular - interest) + balloon
