@@ -1,6 +1,17 @@
 # Calculadora PRICE Avançada
 
-Simulador de financiamento (Tabela Price) com curva interativa e balões.
+Simulador **gratuito** e **open source** (MIT) de financiamento pela Tabela Price — com curva interativa de parcelas e balões.
+
+**Usar online:** https://CodyKoInABox.github.io/pricecalc/
+
+Criado por [CodyKoInABox](https://github.com/CodyKoInABox).
+
+## Recursos
+
+- Price tradicional e curva de parcelas editável
+- Balões em meses específicos
+- Gráficos, tabela de amortização e export CSV
+- 100% no navegador — sem cadastro, sem backend
 
 ## Dev
 
@@ -15,7 +26,13 @@ npm run dev
 npm run test:run
 ```
 
-Roda no CI antes do build/deploy (`.github/workflows/deploy.yml`).
+Atualiza o badge compacto da UI (`src/test-status.json`):
+
+```bash
+npm run test:status
+```
+
+O CI roda os testes antes do build/deploy (`.github/workflows/deploy.yml`).
 
 ## Build
 
@@ -24,8 +41,10 @@ npm run build
 npm run preview
 ```
 
-## GitHub Pages
+## Licença
 
-O site publica em `https://CodyKoInABox.github.io/pricecalc/` via GitHub Actions (push na `main`).
+[MIT](LICENSE) — use, copie, modifique e redistribua livremente.
 
-No repo: **Settings → Pages → Source → GitHub Actions**.
+## Contribuir
+
+Issues e PRs são bem-vindos em https://github.com/CodyKoInABox/pricecalc.

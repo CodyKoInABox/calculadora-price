@@ -3,12 +3,31 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Calculadora PRICE avançada — simulador gratuito de financiamento com curva interativa e balões.",
+  "license": "MIT",
+  "author": "Maruan Biasi El Achkar (https://github.com/CodyKoInABox)",
+  "homepage": "https://CodyKoInABox.github.io/pricecalc/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodyKoInABox/pricecalc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CodyKoInABox/pricecalc/issues"
+  },
+  "keywords": [
+    "price",
+    "financiamento",
+    "calculadora",
+    "amortizacao",
+    "open-source"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:status": "vitest run --reporter=default --reporter=json --outputFile=test-results.json && node scripts/write-test-status.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.0",

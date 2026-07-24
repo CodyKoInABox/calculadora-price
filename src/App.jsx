@@ -3,6 +3,7 @@ import { curvePresets, parseMoney, simulateFinancing } from './math'
 import { formatMoneyInput, exportScheduleCsv, number } from './format'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
+import { AuthorCredit, SiteFooter } from './components/SiteMeta'
 
 let balloonSeq = 1
 
@@ -101,7 +102,13 @@ export default function App() {
   return (
     <main className="page">
       <header className="hero">
-        <h1>Calculadora PRICE Avançada</h1>
+        <div className="hero-copy">
+          <h1>Calculadora PRICE Avançada</h1>
+          <p className="hero-lead">
+            Simule financiamentos pela Tabela Price, com curva interativa e balões — no navegador, sem cadastro.
+          </p>
+        </div>
+        <AuthorCredit />
       </header>
 
       <section className="workspace">
@@ -224,6 +231,8 @@ export default function App() {
           />
         </div>
       </section>
+
+      <SiteFooter />
     </main>
   )
 }
