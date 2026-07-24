@@ -9,6 +9,14 @@ npm install
 npm run dev
 ```
 
+## Testes
+
+```bash
+npm run test:run
+```
+
+Roda no CI antes do build/deploy (`.github/workflows/deploy.yml`).
+
 ## Build
 
 ```bash
