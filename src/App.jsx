@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment, annualToMonthly, monthlyToAnnual } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number } from './format'
+import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
+import { exportPdf } from './exportPdf'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
@@ -283,7 +285,10 @@ export default function App() {
   const [result, setResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)
+  const [shareCopied, setShareCopied] = useState(false)
   const curveRaf = useRef(null)
+  const urlSyncReady = useRef(false)
+  const shareCopiedTimer = useRef(null)
   const propertyId = useId()
   const downId = useId()
   const monthsId = useId()
@@ -401,10 +406,147 @@ export default function App() {
   }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment])
 
   useEffect(() => {
-    runSimulate()
+    const decoded = decodeState(window.location.search)
+    if (!decoded) {
+      runSimulate()
+      urlSyncReady.current = true
+      return
+    }
+
+    const nextProperty = decoded.propertyValue ?? propertyValue
+    const nextDown = decoded.downPayment ?? downPayment
+    const nextMonths = decoded.months ?? months
+    const nextInterest = decoded.interest ?? interest
+    const nextRatePeriod = decoded.ratePeriod ?? ratePeriod
+    const nextMode = decoded.mode ?? mode
+    const nextDirection = decoded.direction ?? direction
+    const nextSolveFor = decoded.solveFor ?? solveFor
+    const nextMaxPayment = decoded.maxPayment ?? maxPayment
+    const nextEffect = decoded.extraEffect ?? extraEffect
+    const nextEnabled = decoded.balloonEnabled ?? balloonEnabled
+    const nextBalloons = decoded.balloons ? cloneExtras(decoded.balloons) : balloons
+    const nextControls = decoded.curveControls ? [...decoded.curveControls] : curveControls
+    const nextA = decoded.scenarioA
+      ? { ...decoded.scenarioA, balloons: cloneExtras(decoded.scenarioA.balloons || []) }
+      : scenarioA
+    const nextB = decoded.scenarioB
+      ? { ...decoded.scenarioB, balloons: cloneExtras(decoded.scenarioB.balloons || []) }
+      : scenarioB
+
+    if (decoded.propertyValue != null) setPropertyValue(decoded.propertyValue)
+    if (decoded.downPayment != null) setDownPayment(decoded.downPayment)
+    if (decoded.months != null) setMonths(decoded.months)
+    if (decoded.interest != null) setInterest(decoded.interest)
+    if (decoded.ratePeriod != null) setRatePeriod(decoded.ratePeriod)
+    if (decoded.mode != null) setMode(decoded.mode)
+    if (decoded.direction != null) setDirection(decoded.direction)
+    if (decoded.solveFor != null) setSolveFor(decoded.solveFor)
+    if (decoded.maxPayment != null) setMaxPayment(decoded.maxPayment)
+    if (decoded.extraEffect != null) setExtraEffect(decoded.extraEffect)
+    if (decoded.balloonEnabled != null) setBalloonEnabled(decoded.balloonEnabled)
+    if (decoded.balloons) setBalloons(nextBalloons)
+    if (decoded.activePreset != null) setActivePreset(decoded.activePreset)
+    if (decoded.curveControls) setCurveControls(nextControls)
+    if (decoded.scenarioA) setScenarioA(nextA)
+    if (decoded.scenarioB) setScenarioB(nextB)
+
+    runSimulate({
+      propertyValue: nextProperty,
+      downPayment: nextDown,
+      months: nextMonths,
+      interest: nextInterest,
+      ratePeriod: nextRatePeriod,
+      mode: nextMode,
+      direction: nextDirection,
+      solveFor: nextSolveFor,
+      maxPayment: nextMaxPayment,
+      extraEffect: nextEffect,
+      balloonEnabled: nextEnabled,
+      balloons: nextBalloons,
+      curveControls: nextControls,
+      scenarioA: nextA,
+      scenarioB: nextB
+    })
+
+    // Allow URL writes after hydrate setters flush
+    requestAnimationFrame(() => {
+      urlSyncReady.current = true
+    })
     // initial only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!urlSyncReady.current) return
+    const timer = setTimeout(() => {
+      applyUrlToHistory({
+        propertyValue,
+        downPayment,
+        months,
+        interest,
+        ratePeriod,
+        mode,
+        direction,
+        solveFor,
+        maxPayment,
+        extraEffect,
+        balloonEnabled,
+        balloons,
+        activePreset,
+        curveControls,
+        scenarioA,
+        scenarioB
+      })
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [
+    propertyValue, downPayment, months, interest, ratePeriod, mode, direction,
+    solveFor, maxPayment, extraEffect, balloonEnabled, balloons, activePreset,
+    curveControls, scenarioA, scenarioB
+  ])
+
+  useEffect(() => () => {
+    if (shareCopiedTimer.current) clearTimeout(shareCopiedTimer.current)
+  }, [])
+
+  const onCopyLink = async () => {
+    const url = buildShareUrl({
+      propertyValue,
+      downPayment,
+      months,
+      interest,
+      ratePeriod,
+      mode,
+      direction,
+      solveFor,
+      maxPayment,
+      extraEffect,
+      balloonEnabled,
+      balloons,
+      activePreset,
+      curveControls,
+      scenarioA,
+      scenarioB
+    })
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareCopied(true)
+      if (shareCopiedTimer.current) clearTimeout(shareCopiedTimer.current)
+      shareCopiedTimer.current = setTimeout(() => setShareCopied(false), 2000)
+      return
+    } catch {
+      /* fall through */
+    }
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'Calculadora PRICE', url })
+        return
+      } catch (err) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+    window.prompt('Copie o link:', url)
+  }
 
   const onCurveChange = useCallback((next, presetId) => {
     setCurveControls(next)
@@ -556,7 +698,7 @@ export default function App() {
 
           {showProperty && (
             <div className="field">
-              <label htmlFor={propertyId}>Valor do imóvel</label>
+              <label htmlFor={propertyId}>Valor a ser financiado</label>
               <div className="input-wrap">
                 <span className="prefix">R$</span>
                 <input id={propertyId} className="has-prefix" value={propertyValue} onChange={moneyChange(setPropertyValue)} inputMode="decimal" />
@@ -732,7 +874,7 @@ export default function App() {
 
               {showSolvedProperty && (
                 <div className="field">
-                  <label htmlFor={propertyId}>Valor do imóvel calculado{mode === 'compare' ? ' (Price)' : ''}</label>
+                  <label htmlFor={propertyId}>Valor total calculado{mode === 'compare' ? ' (Price)' : ''}</label>
                   <div className="input-wrap">
                     <span className="prefix">R$</span>
                     <input
@@ -745,7 +887,7 @@ export default function App() {
                   </div>
                   {mode === 'compare' && compareResult?.sac?.solved === 'principal' && (
                     <p className="footnote" style={{ marginTop: 8 }}>
-                      SAC: imóvel {number.format(compareResult.sac.property)}
+                      SAC: total {number.format(compareResult.sac.property)}
                     </p>
                   )}
                 </div>
@@ -799,15 +941,27 @@ export default function App() {
           <button className="calculate" type="button" onClick={() => runSimulate()}>
             {isInverse ? 'Calcular limite' : 'Calcular financiamento'}
           </button>
-          <p className="footnote">Simulação estimativa. Tarifas, seguros, correção monetária e impostos não estão incluídos.</p>
+          <button className="share-link" type="button" onClick={onCopyLink}>
+            {shareCopied ? 'Link copiado!' : 'Copiar link'}
+          </button>
+          <p className="footnote">Simulação estimativa. Tarifas, seguros, correção monetária e impostos não estão incluídos. O link na barra de endereço carrega esta simulação.</p>
         </aside>
 
         <div className="results">
+          <div className="print-only print-banner">
+            <strong>Calculadora PRICE</strong>
+            <span>
+              {mode === 'ab'
+                ? `Financiado ${propertyValue} · A vs B`
+                : `Financiado ${propertyValue} · Entrada ${downPayment} · ${months} meses`}
+            </span>
+          </div>
           {mode === 'ab' && (
             <AbComparePanel
               a={abResult?.a}
               b={abResult?.b}
               onExport={() => exportAbCompareCsv(abResult?.a?.schedule, abResult?.b?.schedule)}
+              onExportPdf={exportPdf}
             />
           )}
           {mode === 'compare' && (
@@ -815,6 +969,7 @@ export default function App() {
               price={compareResult?.price}
               sac={compareResult?.sac}
               onExport={() => exportCompareCsv(compareResult?.price?.schedule, compareResult?.sac?.schedule)}
+              onExportPdf={exportPdf}
             />
           )}
           {mode !== 'ab' && mode !== 'compare' && (
@@ -822,6 +977,7 @@ export default function App() {
               result={result}
               mode={mode}
               onExport={() => exportScheduleCsv(result?.schedule)}
+              onExportPdf={exportPdf}
             />
           )}
         </div>

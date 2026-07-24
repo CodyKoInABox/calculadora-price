@@ -10,8 +10,10 @@ Criado por [CodyKoInABox](https://github.com/CodyKoInABox).
 
 - Price tradicional e curva de parcelas editável
 - Balões em meses específicos
-- Gráficos, tabela de amortização e export CSV
-- 100% no navegador — sem cadastro, sem backend
+- Comparação Price × SAC e cenários A vs B
+- Gráficos, tabela de amortização, export CSV e PDF
+- Share link com estado na URL (`?pv=&dp=&n=...`) — sem backend
+- 100% no navegador — sem cadastro
 
 ## Dev
 

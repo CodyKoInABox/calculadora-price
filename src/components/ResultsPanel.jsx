@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
 import { brl } from '../format'
 
-export default function ResultsPanel({ result, mode, onExport }) {
+export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
   const paymentRef = useRef(null)
   const breakdownRef = useRef(null)
   const paymentChartRef = useRef(null)
@@ -137,7 +137,7 @@ export default function ResultsPanel({ result, mode, onExport }) {
           )}
           {result.solved === 'principal' && (
             <div className="metric">
-              <span>Valor do imóvel</span>
+              <span>Valor total</span>
               <strong>{brl.format(result.property)}</strong>
               <small>Entrada {brl.format(result.down)} + financiado</small>
             </div>
@@ -145,7 +145,7 @@ export default function ResultsPanel({ result, mode, onExport }) {
           <div className="metric">
             <span>Valor financiado</span>
             <strong>{brl.format(result.principal)}</strong>
-            <small>{result.solved === 'down' ? 'Imóvel − entrada mínima' : 'Após entrada'}</small>
+            <small>{result.solved === 'down' ? 'Valor − entrada mínima' : 'Após entrada'}</small>
           </div>
           <div className="metric">
             <span>Primeira parcela</span>
@@ -202,6 +202,7 @@ export default function ResultsPanel({ result, mode, onExport }) {
           </div>
           <div className="table-actions">
             <button type="button" onClick={onExport}>Exportar CSV</button>
+            {onExportPdf && <button type="button" onClick={onExportPdf}>Exportar PDF</button>}
           </div>
         </div>
         <div className="table-scroll">

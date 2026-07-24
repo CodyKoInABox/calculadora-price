@@ -142,7 +142,7 @@ export function solveFromMaxPayment({
     return { error: 'Informe uma parcela máxima maior que zero.' }
   }
   if (solveFor === 'down' && property <= 0) {
-    return { error: 'Informe um valor do imóvel válido.' }
+    return { error: 'Informe um valor a financiar válido.' }
   }
   if (solveFor === 'principal' && down < 0) {
     return { error: 'Informe uma entrada válida.' }
@@ -154,7 +154,7 @@ export function solveFromMaxPayment({
   const probe = principal => {
     if (principal <= 0) return { schedule: [], principal: 0 }
     if (solveFor === 'down') {
-      if (principal >= property) return { error: 'Principal excede o imóvel.' }
+      if (principal >= property) return { error: 'Principal excede o valor informado.' }
       return simulateFinancing({ ...shared, property, down: property - principal })
     }
     const fixedDown = Math.max(0, down)
@@ -248,7 +248,7 @@ export function simulateFinancing({
   const principal = property - down
 
   if (property <= 0 || principal <= 0) {
-    return { error: 'Informe um valor do imóvel maior que a entrada.' }
+    return { error: 'Informe um valor a financiar maior que a entrada.' }
   }
 
   const effect = extraEffect === 'term' ? 'term' : 'payment'

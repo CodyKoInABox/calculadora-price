@@ -13,7 +13,7 @@ function prazoLabel(result) {
   return `${result.months}×`
 }
 
-export default function AbComparePanel({ a, b, onExport }) {
+export default function AbComparePanel({ a, b, onExport, onExportPdf }) {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
 
@@ -239,6 +239,7 @@ export default function AbComparePanel({ a, b, onExport }) {
           </div>
           <div className="table-actions">
             <button type="button" onClick={onExport}>Exportar CSV</button>
+            {onExportPdf && <button type="button" onClick={onExportPdf}>Exportar PDF</button>}
           </div>
         </div>
         <div className="table-scroll">
