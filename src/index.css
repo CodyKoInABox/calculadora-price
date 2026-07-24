@@ -251,6 +251,9 @@ input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px 
 .segmented.segmented-4 button { font-size: 12px; padding: 10px 6px; }
 .segmented.segmented-4 button { font-size: 11px; padding: 10px 4px; }
 .segmented button.active { color: var(--primary); background: white; box-shadow: 0 4px 12px rgba(30,30,60,.08); }
+.rate-period { margin-bottom: 8px; }
+.rate-period button { padding: 7px 6px; font-size: 12px; }
+.footnote.rate-equiv { margin-top: 8px; }
 
 .scenario-tabs {
   display: grid;

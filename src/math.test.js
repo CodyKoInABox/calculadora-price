@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   parseMoney,
   pricePayment,
+  annualToMonthly,
+  monthlyToAnnual,
   clampCurveValue,
   curvePresets,
   extrasToMap,
@@ -46,6 +48,31 @@ function runSim(partial) {
     ...partial
   })
 }
+
+describe('annualToMonthly / monthlyToAnnual', () => {
+  it('converts 1% a.m. to ~12.6825% a.a.', () => {
+    expect(monthlyToAnnual(0.01)).toBeCloseTo(0.1268250301, 8)
+  })
+
+  it('converts ~12.6825% a.a. back to 1% a.m.', () => {
+    expect(annualToMonthly(0.1268250301319697)).toBeCloseTo(0.01, 10)
+  })
+
+  it('round-trips a.a. → a.m. → a.a.', () => {
+    const aa = 0.12
+    expect(monthlyToAnnual(annualToMonthly(aa))).toBeCloseTo(aa, 12)
+  })
+
+  it('keeps 0 as 0', () => {
+    expect(annualToMonthly(0)).toBe(0)
+    expect(monthlyToAnnual(0)).toBe(0)
+  })
+
+  it('is not the naive /12', () => {
+    expect(annualToMonthly(0.12)).not.toBeCloseTo(0.01, 3)
+    expect(annualToMonthly(0.12)).toBeCloseTo(0.0094887929, 8)
+  })
+})
 
 describe('parseMoney', () => {
   it('parses pt-BR currency strings', () => {

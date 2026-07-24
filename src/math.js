@@ -17,6 +17,16 @@ export function pricePayment(principal, rate, months) {
   return principal * rate * Math.pow(1 + rate, months) / (Math.pow(1 + rate, months) - 1)
 }
 
+/** Effective a.a. → a.m.: (1+i)^(1/12)-1 (not i/12). */
+export function annualToMonthly(iAa) {
+  return Math.pow(1 + iAa, 1 / 12) - 1
+}
+
+/** Effective a.m. → a.a.: (1+i)^12-1. */
+export function monthlyToAnnual(iAm) {
+  return Math.pow(1 + iAm, 12) - 1
+}
+
 export function clampCurveValue(value, step = 0.05) {
   const rounded = step ? Math.round(value / step) * step : value
   return Math.max(CURVE_MIN, Math.min(CURVE_MAX, rounded))

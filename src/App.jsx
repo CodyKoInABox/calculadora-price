@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment } from './math'
+import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment, annualToMonthly, monthlyToAnnual } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number } from './format'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
@@ -35,6 +35,7 @@ function defaultScenarioA() {
     downPayment: '60.000,00',
     months: 36,
     interest: 1,
+    ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
     extraEffect: 'payment'
@@ -46,10 +47,28 @@ function defaultScenarioB() {
     downPayment: '80.000,00',
     months: 48,
     interest: 0.85,
+    ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
     extraEffect: 'payment'
   }
+}
+
+/** Percent + period → monthly decimal for the engine. */
+function toMonthlyRate(interestPct, period) {
+  const i = Math.max(0, Number(interestPct) || 0) / 100
+  return period === 'aa' ? annualToMonthly(i) : i
+}
+
+/** Round % for inputs (~4 decimals, no float noise). */
+function formatRatePct(decimal) {
+  const pct = decimal * 100
+  if (!Number.isFinite(pct) || pct === 0) return 0
+  return Math.round(pct * 1e4) / 1e4
+}
+
+function formatRatePctLabel(decimal) {
+  return String(formatRatePct(decimal)).replace('.', ',')
 }
 
 function runScenario(property, scenario) {
@@ -58,12 +77,60 @@ function runScenario(property, scenario) {
     property,
     down: parseMoney(scenario.downPayment),
     months,
-    rate: Math.max(0, Number(scenario.interest) || 0) / 100,
+    rate: toMonthlyRate(scenario.interest, scenario.ratePeriod || 'am'),
     mode: 'price',
     balloons: extrasToMap(scenario.balloonEnabled, scenario.balloons, months),
     extraEffect: scenario.extraEffect || 'payment',
     curveControls: [...curvePresets.linear]
   })
+}
+
+function InterestField({ id, interest, ratePeriod, onInterestChange, onPeriodChange }) {
+  const period = ratePeriod === 'aa' ? 'aa' : 'am'
+  const i = Math.max(0, Number(interest) || 0) / 100
+  const equiv = period === 'aa' ? annualToMonthly(i) : monthlyToAnnual(i)
+  const equivUnit = period === 'aa' ? 'mês' : 'ano'
+
+  return (
+    <div className="field">
+      <label htmlFor={id}>Juros</label>
+      <div className="segmented rate-period">
+        <button
+          type="button"
+          className={period === 'am' ? 'active' : ''}
+          onClick={() => {
+            if (period === 'am') return
+            onPeriodChange('am', formatRatePct(annualToMonthly(i)))
+          }}
+        >
+          Mês
+        </button>
+        <button
+          type="button"
+          className={period === 'aa' ? 'active' : ''}
+          onClick={() => {
+            if (period === 'aa') return
+            onPeriodChange('aa', formatRatePct(monthlyToAnnual(i)))
+          }}
+        >
+          Ano
+        </button>
+      </div>
+      <div className="input-wrap">
+        <input
+          id={id}
+          type="number"
+          value={interest}
+          min={0}
+          step={0.01}
+          className="has-suffix"
+          onChange={e => onInterestChange(e.target.value)}
+        />
+        <span className="suffix">%</span>
+      </div>
+      <p className="footnote rate-equiv">≈ {formatRatePctLabel(equiv)}% ao {equivUnit} (efetivo)</p>
+    </div>
+  )
 }
 
 function ExtrasEditor({
@@ -200,6 +267,7 @@ export default function App() {
   const [downPayment, setDownPayment] = useState('60.000,00')
   const [months, setMonths] = useState(36)
   const [interest, setInterest] = useState(1)
+  const [ratePeriod, setRatePeriod] = useState('am')
   const [mode, setMode] = useState('price')
   const [curveControls, setCurveControls] = useState([...curvePresets.linear])
   const [activePreset, setActivePreset] = useState('linear')
@@ -234,7 +302,8 @@ export default function App() {
     const property = parseMoney(overrides.propertyValue ?? propertyValue)
     const down = parseMoney(overrides.downPayment ?? downPayment)
     const targetPayment = parseMoney(overrides.maxPayment ?? maxPayment)
-    const rate = Math.max(0, Number(overrides.interest ?? interest) || 0) / 100
+    const nextRatePeriod = overrides.ratePeriod ?? ratePeriod
+    const rate = toMonthlyRate(overrides.interest ?? interest, nextRatePeriod)
     const balloonMap = extrasToMap(nextEnabled, nextBalloons, nextMonths)
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
@@ -329,7 +398,7 @@ export default function App() {
     setResult(out)
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, scenarioA, scenarioB, direction, solveFor, maxPayment])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment])
 
   useEffect(() => {
     runSimulate()
@@ -413,6 +482,7 @@ export default function App() {
       downPayment: scenarioA.downPayment,
       months: scenarioA.months,
       interest: scenarioA.interest,
+      ratePeriod: scenarioA.ratePeriod || 'am',
       balloonEnabled: scenarioA.balloonEnabled,
       balloons: cloneExtras(scenarioA.balloons),
       extraEffect: scenarioA.extraEffect || 'payment'
@@ -561,21 +631,15 @@ export default function App() {
                     <span className="suffix">meses</span>
                   </div>
                 </div>
-                <div className="field">
-                  <label htmlFor={interestId}>Juros ao mês</label>
-                  <div className="input-wrap">
-                    <input
-                      id={interestId}
-                      type="number"
-                      value={currentScenario.interest}
-                      min={0}
-                      step={0.01}
-                      className="has-suffix"
-                      onChange={e => updateActiveScenario({ interest: e.target.value })}
-                    />
-                    <span className="suffix">%</span>
-                  </div>
-                </div>
+                <InterestField
+                  id={interestId}
+                  interest={currentScenario.interest}
+                  ratePeriod={currentScenario.ratePeriod || 'am'}
+                  onInterestChange={value => updateActiveScenario({ interest: value })}
+                  onPeriodChange={(nextPeriod, nextInterest) => {
+                    updateActiveScenario({ ratePeriod: nextPeriod, interest: nextInterest })
+                  }}
+                />
               </div>
 
               <ExtrasEditor
@@ -695,13 +759,16 @@ export default function App() {
                     <span className="suffix">meses</span>
                   </div>
                 </div>
-                <div className="field">
-                  <label htmlFor={interestId}>Juros ao mês</label>
-                  <div className="input-wrap">
-                    <input id={interestId} type="number" value={interest} min={0} step={0.01} className="has-suffix" onChange={e => setInterest(e.target.value)} />
-                    <span className="suffix">%</span>
-                  </div>
-                </div>
+                <InterestField
+                  id={interestId}
+                  interest={interest}
+                  ratePeriod={ratePeriod}
+                  onInterestChange={setInterest}
+                  onPeriodChange={(nextPeriod, nextInterest) => {
+                    setRatePeriod(nextPeriod)
+                    setInterest(nextInterest)
+                  }}
+                />
               </div>
 
               {mode === 'growing' && (
