@@ -1,12 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
 import { brl } from '../format'
+import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 
 export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
   const paymentRef = useRef(null)
   const breakdownRef = useRef(null)
   const paymentChartRef = useRef(null)
   const breakdownChartRef = useRef(null)
+  const getPaymentChart = useCallback(() => paymentChartRef.current, [])
+  const paymentExpand = useChartExpand(getPaymentChart)
 
   useEffect(() => {
     if (!result || result.error) return
@@ -177,10 +180,23 @@ export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
       </section>
 
       <div className="visual-grid">
-        <section className="panel chart-card">
-          <h2 className="panel-title">Evolução das parcelas</h2>
-          <p className="panel-subtitle">Pagamento mensal e saldo devedor ao longo do contrato.</p>
-          <div className="chart-wrap"><canvas ref={paymentRef} /></div>
+        {paymentExpand.expanded && <ChartExpandBackdrop onClose={paymentExpand.close} />}
+        <section
+          className={`panel chart-card${paymentExpand.expanded ? ' is-expanded' : ''}`}
+          role={paymentExpand.expanded ? 'dialog' : undefined}
+          aria-modal={paymentExpand.expanded || undefined}
+          aria-labelledby={paymentExpand.expanded ? paymentExpand.titleId : undefined}
+        >
+          <div className="chart-card-head">
+            <div>
+              <h2 id={paymentExpand.titleId} className="panel-title">Evolução das parcelas</h2>
+              <p className="panel-subtitle tight">Pagamento mensal e saldo devedor ao longo do contrato.</p>
+            </div>
+            <ChartExpandButton onClick={paymentExpand.toggle} expanded={paymentExpand.expanded} />
+          </div>
+          <div className="chart-wrap">
+            <canvas ref={paymentRef} />
+          </div>
         </section>
         <section className="panel breakdown">
           <h2 className="panel-title">Composição do pagamento</h2>

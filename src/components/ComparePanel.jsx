@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
 import { brl } from '../format'
+import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 
 function totalPaid(result) {
   return result.down + result.totalRegular + result.totalBalloon
@@ -16,6 +17,8 @@ function prazoLabel(result) {
 export default function ComparePanel({ price, sac, onExport, onExportPdf }) {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
+  const getChart = useCallback(() => chartInstance.current, [])
+  const expand = useChartExpand(getChart)
 
   useEffect(() => {
     if (!price?.schedule || !sac?.schedule) return
@@ -237,10 +240,23 @@ export default function ComparePanel({ price, sac, onExport, onExportPdf }) {
         </section>
       </div>
 
-      <section className="panel chart-card">
-        <h2 className="panel-title">Evolução lado a lado</h2>
-        <p className="panel-subtitle">Parcelas e saldo devedor — Price vs SAC.</p>
-        <div className="chart-wrap"><canvas ref={chartRef} /></div>
+      {expand.expanded && <ChartExpandBackdrop onClose={expand.close} />}
+      <section
+        className={`panel chart-card${expand.expanded ? ' is-expanded' : ''}`}
+        role={expand.expanded ? 'dialog' : undefined}
+        aria-modal={expand.expanded || undefined}
+        aria-labelledby={expand.expanded ? expand.titleId : undefined}
+      >
+        <div className="chart-card-head">
+          <div>
+            <h2 id={expand.titleId} className="panel-title">Evolução lado a lado</h2>
+            <p className="panel-subtitle tight">Parcelas e saldo devedor — Price vs SAC.</p>
+          </div>
+          <ChartExpandButton onClick={expand.toggle} expanded={expand.expanded} />
+        </div>
+        <div className="chart-wrap">
+          <canvas ref={chartRef} />
+        </div>
       </section>
 
       <section className="panel table-card">
