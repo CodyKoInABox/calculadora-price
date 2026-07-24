@@ -2,7 +2,7 @@
 
 Simulador **gratuito** e **open source** (MIT) de financiamento pela Tabela Price — com curva interativa de parcelas e balões.
 
-**Usar online:** https://CodyKoInABox.github.io/pricecalc/
+**Usar online:** https://CodyKoInABox.github.io/calculadora-price/
 
 Criado por [CodyKoInABox](https://github.com/CodyKoInABox).
 
@@ -49,4 +49,4 @@ npm run preview
 
 ## Contribuir
 
-Issues e PRs são bem-vindos em https://github.com/CodyKoInABox/pricecalc.
+Issues e PRs são bem-vindos em https://github.com/CodyKoInABox/calculadora-price.

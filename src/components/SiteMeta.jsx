@@ -1,6 +1,6 @@
 import testStatus from '../test-status.json'
 
-const REPO = 'https://github.com/CodyKoInABox/pricecalc'
+const REPO = 'https://github.com/CodyKoInABox/calculadora-price'
 const AUTHOR = 'https://github.com/CodyKoInABox'
 
 function GitHubIcon({ size = 18 }) {

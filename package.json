@@ -6,13 +6,13 @@
   "description": "Calculadora PRICE avançada — simulador gratuito de financiamento com curva interativa e balões.",
   "license": "MIT",
   "author": "Maruan Biasi El Achkar (https://github.com/CodyKoInABox)",
-  "homepage": "https://CodyKoInABox.github.io/pricecalc/",
+  "homepage": "https://CodyKoInABox.github.io/calculadora-price/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CodyKoInABox/pricecalc.git"
+    "url": "git+https://github.com/CodyKoInABox/calculadora-price.git"
   },
   "bugs": {
-    "url": "https://github.com/CodyKoInABox/pricecalc/issues"
+    "url": "https://github.com/CodyKoInABox/calculadora-price/issues"
   },
   "keywords": [
     "price",

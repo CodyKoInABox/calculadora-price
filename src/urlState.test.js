@@ -220,18 +220,18 @@ describe('buildShareUrl', () => {
   it('uses origin + pathname + query', () => {
     const loc = {
       origin: 'https://CodyKoInABox.github.io',
-      pathname: '/pricecalc/'
+      pathname: '/calculadora-price/'
     }
     const url = buildShareUrl({
       ...baseState,
       propertyValue: '200.000,00',
       months: 24
     }, loc)
-    expect(url).toBe('https://CodyKoInABox.github.io/pricecalc/?pv=200000&n=24')
+    expect(url).toBe('https://CodyKoInABox.github.io/calculadora-price/?pv=200000&n=24')
   })
 
   it('omits ? when state is all defaults', () => {
-    const loc = { origin: 'https://example.com', pathname: '/pricecalc/' }
-    expect(buildShareUrl(baseState, loc)).toBe('https://example.com/pricecalc/')
+    const loc = { origin: 'https://example.com', pathname: '/calculadora-price/' }
+    expect(buildShareUrl(baseState, loc)).toBe('https://example.com/calculadora-price/')
   })
 })
