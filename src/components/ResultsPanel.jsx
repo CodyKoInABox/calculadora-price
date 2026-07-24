@@ -107,6 +107,7 @@ export default function ResultsPanel({ result, mode, onExport }) {
   }
 
   const totalPaid = result.down + result.totalRegular + result.totalBalloon
+  const termReduced = result.extraEffect === 'term' && result.effectiveMonths < result.months
 
   return (
     <>
@@ -135,10 +136,21 @@ export default function ResultsPanel({ result, mode, onExport }) {
             <small>Sem considerar balão separado</small>
           </div>
           <div className="metric">
-            <span>Total pago</span>
-            <strong>{brl.format(totalPaid)}</strong>
-            <small>Entrada + parcelas + balões</small>
+            <span>{termReduced ? 'Prazo efetivo' : 'Total pago'}</span>
+            <strong>
+              {termReduced
+                ? `${result.months} → ${result.effectiveMonths} meses`
+                : brl.format(totalPaid)}
+            </strong>
+            <small>{termReduced ? 'Contratado → liquidado' : 'Entrada + parcelas + balões'}</small>
           </div>
+          {termReduced && (
+            <div className="metric">
+              <span>Total pago</span>
+              <strong>{brl.format(totalPaid)}</strong>
+              <small>Entrada + parcelas + balões</small>
+            </div>
+          )}
         </div>
       </section>
 

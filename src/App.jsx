@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { curvePresets, parseMoney, simulateFinancing } from './math'
+import { curvePresets, extrasToMap, parseMoney, simulateFinancing } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number } from './format'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
@@ -7,21 +7,27 @@ import ComparePanel from './components/ComparePanel'
 import AbComparePanel from './components/AbComparePanel'
 import { AuthorCredit, SiteFooter } from './components/SiteMeta'
 
-let balloonSeq = 1
+let extraSeq = 1
 
-function balloonsToMap(enabled, balloons, months) {
-  if (!enabled) return new Map()
-  const map = new Map()
-  for (const item of balloons) {
-    const month = Math.max(1, Math.min(months, Number(item.month) || 1))
-    const value = Math.max(0, parseMoney(item.amount))
-    map.set(month, (map.get(month) || 0) + value)
+function newExtra(overrides = {}) {
+  return {
+    id: extraSeq++,
+    recurrence: 'once',
+    month: 6,
+    everyN: 6,
+    amount: number.format(10000),
+    ...overrides
   }
-  return map
 }
 
-function cloneBalloons(balloons) {
-  return balloons.map(b => ({ id: balloonSeq++, month: b.month, amount: b.amount }))
+function cloneExtras(extras) {
+  return extras.map(b => ({
+    id: extraSeq++,
+    recurrence: b.recurrence || 'once',
+    month: b.month,
+    everyN: b.everyN ?? 6,
+    amount: b.amount
+  }))
 }
 
 function defaultScenarioA() {
@@ -30,7 +36,8 @@ function defaultScenarioA() {
     months: 36,
     interest: 1,
     balloonEnabled: false,
-    balloons: []
+    balloons: [],
+    extraEffect: 'payment'
   }
 }
 
@@ -40,7 +47,8 @@ function defaultScenarioB() {
     months: 48,
     interest: 0.85,
     balloonEnabled: false,
-    balloons: []
+    balloons: [],
+    extraEffect: 'payment'
   }
 }
 
@@ -52,9 +60,139 @@ function runScenario(property, scenario) {
     months,
     rate: Math.max(0, Number(scenario.interest) || 0) / 100,
     mode: 'price',
-    balloons: balloonsToMap(scenario.balloonEnabled, scenario.balloons, months),
+    balloons: extrasToMap(scenario.balloonEnabled, scenario.balloons, months),
+    extraEffect: scenario.extraEffect || 'payment',
     curveControls: [...curvePresets.linear]
   })
+}
+
+function ExtrasEditor({
+  enabled,
+  extras,
+  extraEffect,
+  onToggle,
+  onEffectChange,
+  onAdd,
+  onPatch,
+  onRemove
+}) {
+  return (
+    <>
+      <div className="switch-line">
+        <div className="switch-copy">
+          <strong>Pagamentos extras</strong>
+          <span>Balões pontuais ou amortização recorrente</span>
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={enabled} onChange={e => onToggle(e.target.checked)} />
+          <span className="slider" />
+        </label>
+      </div>
+
+      {enabled && (
+        <div className="conditional visible balloons">
+          <div className="field">
+            <label>Efeito dos extras</label>
+            <div className="segmented">
+              <button
+                type="button"
+                className={extraEffect === 'payment' ? 'active' : ''}
+                onClick={() => onEffectChange('payment')}
+              >
+                Reduzir parcela
+              </button>
+              <button
+                type="button"
+                className={extraEffect === 'term' ? 'active' : ''}
+                onClick={() => onEffectChange('term')}
+              >
+                Reduzir prazo
+              </button>
+            </div>
+          </div>
+
+          <div className="balloons-head">
+            <strong>Extras programados</strong>
+            <button type="button" className="btn-small" onClick={onAdd}>+ Adicionar</button>
+          </div>
+
+          <div>
+            {extras.map(item => {
+              const recurrence = item.recurrence || 'once'
+              return (
+                <div className="balloon-item balloon-item-extra" key={item.id}>
+                  <div className="balloon-extra-top">
+                    <select
+                      value={recurrence}
+                      aria-label="Recorrência"
+                      onChange={e => onPatch(item.id, { recurrence: e.target.value })}
+                    >
+                      <option value="once">Único</option>
+                      <option value="monthly">Todo mês</option>
+                      <option value="yearly">Todo ano</option>
+                      <option value="every">A cada N meses</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="remove"
+                      aria-label="Remover extra"
+                      onClick={() => onRemove(item.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className={`balloon-extra-fields${recurrence === 'every' ? ' has-every' : ''}`}>
+                    {recurrence === 'every' && (
+                      <div className="input-wrap">
+                        <input
+                          type="number"
+                          min={2}
+                          value={item.everyN ?? 6}
+                          className="has-suffix"
+                          aria-label="Intervalo em meses"
+                          onChange={e => onPatch(item.id, { everyN: e.target.value })}
+                        />
+                        <span className="suffix">meses</span>
+                      </div>
+                    )}
+
+                    <div className="input-wrap">
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.month}
+                        className="has-suffix"
+                        aria-label={recurrence === 'once' ? 'Mês do extra' : 'Mês inicial'}
+                        onChange={e => onPatch(item.id, { month: e.target.value })}
+                      />
+                      <span className="suffix">{recurrence === 'once' ? 'mês' : 'início'}</span>
+                    </div>
+
+                    <div className="input-wrap balloon-extra-amount">
+                      <span className="prefix">R$</span>
+                      <input
+                        value={item.amount}
+                        className="has-prefix"
+                        aria-label="Valor do extra"
+                        onChange={e => onPatch(item.id, { amount: formatMoneyInput(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="footnote">
+            {extraEffect === 'term'
+              ? 'Os extras amortizam o saldo e encurtam o prazo; a parcela contratada permanece. Juros do período continuam calculados normalmente.'
+              : 'Os extras amortizam o saldo e reduzem a parcela para liquidar no prazo contratado. Juros do período continuam calculados normalmente.'}
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
 
 export default function App() {
@@ -67,6 +205,7 @@ export default function App() {
   const [activePreset, setActivePreset] = useState('linear')
   const [balloonEnabled, setBalloonEnabled] = useState(false)
   const [balloons, setBalloons] = useState([])
+  const [extraEffect, setExtraEffect] = useState('payment')
   const [scenarioA, setScenarioA] = useState(defaultScenarioA)
   const [scenarioB, setScenarioB] = useState(defaultScenarioB)
   const [activeScenario, setActiveScenario] = useState('a')
@@ -84,11 +223,12 @@ export default function App() {
     const nextControls = overrides.curveControls ?? curveControls
     const nextBalloons = overrides.balloons ?? balloons
     const nextEnabled = overrides.balloonEnabled ?? balloonEnabled
+    const nextEffect = overrides.extraEffect ?? extraEffect
     const nextMonths = Math.max(1, Number(overrides.months ?? months) || 1)
     const property = parseMoney(overrides.propertyValue ?? propertyValue)
     const down = parseMoney(overrides.downPayment ?? downPayment)
     const rate = Math.max(0, Number(overrides.interest ?? interest) || 0) / 100
-    const balloonMap = balloonsToMap(nextEnabled, nextBalloons, nextMonths)
+    const balloonMap = extrasToMap(nextEnabled, nextBalloons, nextMonths)
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
 
@@ -112,6 +252,7 @@ export default function App() {
         months: nextMonths,
         rate,
         balloons: balloonMap,
+        extraEffect: nextEffect,
         curveControls: nextControls
       }
       const priceOut = simulateFinancing({ ...shared, mode: 'price' })
@@ -133,6 +274,7 @@ export default function App() {
       rate,
       mode: nextMode,
       balloons: balloonMap,
+      extraEffect: nextEffect,
       curveControls: nextControls
     })
 
@@ -143,7 +285,7 @@ export default function App() {
     setResult(out)
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, months, propertyValue, downPayment, interest, scenarioA, scenarioB])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, scenarioA, scenarioB])
 
   useEffect(() => {
     runSimulate()
@@ -169,15 +311,18 @@ export default function App() {
   }, [runSimulate])
 
   const addBalloon = () => {
-    setBalloons(prev => [...prev, { id: balloonSeq++, month: 6, amount: number.format(10000) }])
+    setBalloons(prev => [...prev, newExtra()])
   }
 
   const toggleBalloons = checked => {
     setBalloonEnabled(checked)
     if (checked && balloons.length === 0) {
-      const next = [{ id: balloonSeq++, month: 6, amount: number.format(10000) }]
-      setBalloons(next)
+      setBalloons([newExtra()])
     }
+  }
+
+  const patchBalloon = (id, patch) => {
+    setBalloons(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b))
   }
 
   const updateActiveScenario = patch => {
@@ -189,7 +334,7 @@ export default function App() {
     const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
     setter(prev => ({
       ...prev,
-      balloons: [...prev.balloons, { id: balloonSeq++, month: 6, amount: number.format(10000) }]
+      balloons: [...prev.balloons, newExtra()]
     }))
   }
 
@@ -197,10 +342,26 @@ export default function App() {
     const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
     setter(prev => {
       const balloonsNext = checked && prev.balloons.length === 0
-        ? [{ id: balloonSeq++, month: 6, amount: number.format(10000) }]
+        ? [newExtra()]
         : prev.balloons
       return { ...prev, balloonEnabled: checked, balloons: balloonsNext }
     })
+  }
+
+  const patchScenarioBalloon = (id, patch) => {
+    const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
+    setter(prev => ({
+      ...prev,
+      balloons: prev.balloons.map(b => b.id === id ? { ...b, ...patch } : b)
+    }))
+  }
+
+  const removeScenarioBalloon = id => {
+    const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
+    setter(prev => ({
+      ...prev,
+      balloons: prev.balloons.filter(b => b.id !== id)
+    }))
   }
 
   const copyAtoB = () => {
@@ -209,7 +370,8 @@ export default function App() {
       months: scenarioA.months,
       interest: scenarioA.interest,
       balloonEnabled: scenarioA.balloonEnabled,
-      balloons: cloneBalloons(scenarioA.balloons)
+      balloons: cloneExtras(scenarioA.balloons),
+      extraEffect: scenarioA.extraEffect || 'payment'
     }
     setScenarioB(next)
     runSimulate({ mode: 'ab', scenarioB: next })
@@ -231,7 +393,7 @@ export default function App() {
         <div className="hero-copy">
           <h1>Calculadora PRICE Avançada</h1>
           <p className="hero-lead">
-            Compare Price e SAC, cenários A vs B (taxa, prazo, entrada e balões), curva interativa — no navegador, sem cadastro.
+            Compare Price e SAC, cenários A vs B (taxa, prazo, entrada e extras), curva interativa — no navegador, sem cadastro.
           </p>
         </div>
         <AuthorCredit />
@@ -334,82 +496,16 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="switch-line">
-                <div className="switch-copy">
-                  <strong>Adicionar balões</strong>
-                  <span>Pagamentos extras em meses específicos</span>
-                </div>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={currentScenario.balloonEnabled}
-                    onChange={e => toggleScenarioBalloons(e.target.checked)}
-                  />
-                  <span className="slider" />
-                </label>
-              </div>
-
-              {currentScenario.balloonEnabled && (
-                <div className="conditional visible balloons">
-                  <div className="balloons-head">
-                    <strong>Balões programados</strong>
-                    <button type="button" className="btn-small" onClick={addScenarioBalloon}>+ Adicionar</button>
-                  </div>
-                  <div>
-                    {currentScenario.balloons.map(item => (
-                      <div className="balloon-item" key={item.id}>
-                        <div className="input-wrap">
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.month}
-                            className="has-suffix"
-                            onChange={e => {
-                              const month = e.target.value
-                              const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
-                              setter(prev => ({
-                                ...prev,
-                                balloons: prev.balloons.map(b => b.id === item.id ? { ...b, month } : b)
-                              }))
-                            }}
-                          />
-                          <span className="suffix">mês</span>
-                        </div>
-                        <div className="input-wrap">
-                          <span className="prefix">R$</span>
-                          <input
-                            value={item.amount}
-                            className="has-prefix"
-                            onChange={e => {
-                              const amount = formatMoneyInput(e.target.value)
-                              const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
-                              setter(prev => ({
-                                ...prev,
-                                balloons: prev.balloons.map(b => b.id === item.id ? { ...b, amount } : b)
-                              }))
-                            }}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          className="remove"
-                          aria-label="Remover balão"
-                          onClick={() => {
-                            const setter = activeScenario === 'a' ? setScenarioA : setScenarioB
-                            setter(prev => ({
-                              ...prev,
-                              balloons: prev.balloons.filter(b => b.id !== item.id)
-                            }))
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="footnote">Os balões amortizam o saldo devedor no mês informado. Os juros do período continuam calculados normalmente.</div>
-                </div>
-              )}
+              <ExtrasEditor
+                enabled={currentScenario.balloonEnabled}
+                extras={currentScenario.balloons}
+                extraEffect={currentScenario.extraEffect || 'payment'}
+                onToggle={toggleScenarioBalloons}
+                onEffectChange={value => updateActiveScenario({ extraEffect: value })}
+                onAdd={addScenarioBalloon}
+                onPatch={patchScenarioBalloon}
+                onRemove={removeScenarioBalloon}
+              />
             </>
           ) : (
             <>
@@ -450,51 +546,16 @@ export default function App() {
                 </div>
               )}
 
-              <div className="switch-line">
-                <div className="switch-copy">
-                  <strong>Adicionar balões</strong>
-                  <span>Pagamentos extras em meses específicos</span>
-                </div>
-                <label className="switch">
-                  <input type="checkbox" checked={balloonEnabled} onChange={e => toggleBalloons(e.target.checked)} />
-                  <span className="slider" />
-                </label>
-              </div>
-
-              {balloonEnabled && (
-                <div className="conditional visible balloons">
-                  <div className="balloons-head">
-                    <strong>Balões programados</strong>
-                    <button type="button" className="btn-small" onClick={addBalloon}>+ Adicionar</button>
-                  </div>
-                  <div>
-                    {balloons.map(item => (
-                      <div className="balloon-item" key={item.id}>
-                        <div className="input-wrap">
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.month}
-                            className="has-suffix"
-                            onChange={e => setBalloons(prev => prev.map(b => b.id === item.id ? { ...b, month: e.target.value } : b))}
-                          />
-                          <span className="suffix">mês</span>
-                        </div>
-                        <div className="input-wrap">
-                          <span className="prefix">R$</span>
-                          <input
-                            value={item.amount}
-                            className="has-prefix"
-                            onChange={e => setBalloons(prev => prev.map(b => b.id === item.id ? { ...b, amount: formatMoneyInput(e.target.value) } : b))}
-                          />
-                        </div>
-                        <button type="button" className="remove" aria-label="Remover balão" onClick={() => setBalloons(prev => prev.filter(b => b.id !== item.id))}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="footnote">Os balões amortizam o saldo devedor no mês informado. Os juros do período continuam calculados normalmente.</div>
-                </div>
-              )}
+              <ExtrasEditor
+                enabled={balloonEnabled}
+                extras={balloons}
+                extraEffect={extraEffect}
+                onToggle={toggleBalloons}
+                onEffectChange={setExtraEffect}
+                onAdd={addBalloon}
+                onPatch={patchBalloon}
+                onRemove={id => setBalloons(prev => prev.filter(b => b.id !== id))}
+              />
             </>
           )}
 

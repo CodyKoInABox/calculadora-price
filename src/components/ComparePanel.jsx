@@ -6,6 +6,13 @@ function totalPaid(result) {
   return result.down + result.totalRegular + result.totalBalloon
 }
 
+function prazoLabel(result) {
+  if (result.extraEffect === 'term' && result.effectiveMonths < result.months) {
+    return `${result.months} → ${result.effectiveMonths} meses`
+  }
+  return `${result.months} meses`
+}
+
 export default function ComparePanel({ price, sac, onExport }) {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
@@ -115,7 +122,13 @@ export default function ComparePanel({ price, sac, onExport }) {
     <>
       <section className="panel compare-verdict">
         <div className="compare-verdict-copy">
-          <p className="compare-eyebrow">Price × SAC · mesmo principal, taxa e prazo</p>
+          <p className="compare-eyebrow">
+            Price × SAC · mesmo principal, taxa e prazo
+            {(price.extraEffect === 'term' && price.effectiveMonths < price.months) ||
+            (sac.extraEffect === 'term' && sac.effectiveMonths < sac.months)
+              ? ` · efetivo Price ${prazoLabel(price)} / SAC ${prazoLabel(sac)}`
+              : ''}
+          </p>
           <h2 className="panel-title">
             {sacSaves
               ? <>SAC economiza <span className="compare-save">{brl.format(interestDelta)}</span> em juros</>

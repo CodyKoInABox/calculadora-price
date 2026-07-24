@@ -6,6 +6,13 @@ function totalPaid(result) {
   return result.down + result.totalRegular + result.totalBalloon
 }
 
+function prazoLabel(result) {
+  if (result.extraEffect === 'term' && result.effectiveMonths < result.months) {
+    return `${result.months} → ${result.effectiveMonths} meses`
+  }
+  return `${result.months}×`
+}
+
 export default function AbComparePanel({ a, b, onExport }) {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
@@ -120,7 +127,7 @@ export default function AbComparePanel({ a, b, onExport }) {
       <section className="panel empty">
         <div className="empty-icon">↗</div>
         <h2 className="panel-title">Sua comparação A vs B aparecerá aqui</h2>
-        <p>Ajuste taxa, prazo, entrada e balões de cada cenário e clique em calcular.</p>
+        <p>Ajuste taxa, prazo, entrada e extras de cada cenário e clique em calcular.</p>
       </section>
     )
   }
@@ -170,7 +177,7 @@ export default function AbComparePanel({ a, b, onExport }) {
         <section className="panel compare-side a">
           <h3 className="compare-side-title">Cenário A</h3>
           <p className="panel-subtitle tight">
-            {a.months}× · {brl.format(a.down)} entrada
+            {prazoLabel(a)} · {brl.format(a.down)} entrada
           </p>
           <div className="compare-metrics">
             <div className="metric">
@@ -195,7 +202,7 @@ export default function AbComparePanel({ a, b, onExport }) {
         <section className="panel compare-side b">
           <h3 className="compare-side-title">Cenário B</h3>
           <p className="panel-subtitle tight">
-            {b.months}× · {brl.format(b.down)} entrada
+            {prazoLabel(b)} · {brl.format(b.down)} entrada
           </p>
           <div className="compare-metrics">
             <div className="metric">

@@ -4,6 +4,7 @@ import {
   pricePayment,
   clampCurveValue,
   curvePresets,
+  extrasToMap,
   simulateFinancing,
   CURVE_MIN,
   CURVE_MAX
@@ -172,6 +173,8 @@ describe('simulateFinancing — balões', () => {
     expect(row6.balloon).toBeCloseTo(20_000, 2)
     expect(r.totalBalloon).toBeCloseTo(20_000, 2)
     expect(r.schedule.at(-1).balance).toBeCloseTo(0, 2)
+    expect(r.schedule).toHaveLength(36)
+    expect(r.effectiveMonths).toBe(36)
 
     const amortSum = r.schedule.reduce((s, row) => s + row.amortization, 0)
     expect(amortSum).toBeCloseTo(r.principal, 2)
@@ -189,6 +192,108 @@ describe('simulateFinancing — balões', () => {
 
     expect(r.schedule[0].balloon).toBeLessThanOrEqual(r.principal * 1.01 + 1e-6)
     expect(r.schedule.at(-1).balance).toBeCloseTo(0, 2)
+  })
+})
+
+describe('extrasToMap', () => {
+  it('expands monthly extras across the horizon', () => {
+    const map = extrasToMap(true, [{ recurrence: 'monthly', month: 1, amount: '500,00' }], 12)
+    expect(map.size).toBe(12)
+    for (let m = 1; m <= 12; m++) expect(map.get(m)).toBe(500)
+  })
+
+  it('expands yearly and every-N from start month', () => {
+    const yearly = extrasToMap(true, [{ recurrence: 'yearly', month: 12, amount: '10.000,00' }], 36)
+    expect([...yearly.keys()].sort((a, b) => a - b)).toEqual([12, 24, 36])
+    expect(yearly.get(12)).toBe(10_000)
+
+    const every = extrasToMap(true, [{ recurrence: 'every', month: 1, everyN: 6, amount: '5.000,00' }], 24)
+    expect([...every.keys()].sort((a, b) => a - b)).toEqual([1, 7, 13, 19])
+  })
+
+  it('sums overlapping once + recurring on the same month', () => {
+    const map = extrasToMap(
+      true,
+      [
+        { recurrence: 'once', month: 6, amount: '1.000,00' },
+        { recurrence: 'every', month: 6, everyN: 6, amount: '500,00' }
+      ],
+      12
+    )
+    expect(map.get(6)).toBe(1_500)
+    expect(map.get(12)).toBe(500)
+  })
+})
+
+describe('simulateFinancing — extraEffect payment vs term', () => {
+  const monthlyExtras = extrasToMap(true, [{ recurrence: 'monthly', month: 1, amount: '500,00' }], 36)
+
+  it('Price payment keeps contracted term and lowers installment', () => {
+    const baseline = runSim({ property: 300_000, down: 60_000, months: 36, rate: 0.01 })
+    const withExtras = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      balloons: monthlyExtras,
+      extraEffect: 'payment'
+    })
+
+    expect(withExtras.schedule).toHaveLength(36)
+    expect(withExtras.effectiveMonths).toBe(36)
+    expect(withExtras.schedule[0].payment).toBeLessThan(baseline.schedule[0].payment)
+    expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
+  })
+
+  it('Price term keeps contracted PMT and shortens schedule', () => {
+    const baseline = runSim({ property: 300_000, down: 60_000, months: 36, rate: 0.01 })
+    const withExtras = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      balloons: monthlyExtras,
+      extraEffect: 'term'
+    })
+
+    expect(withExtras.months).toBe(36)
+    expect(withExtras.effectiveMonths).toBeLessThan(36)
+    expect(withExtras.schedule).toHaveLength(withExtras.effectiveMonths)
+    expect(withExtras.schedule[0].payment).toBeCloseTo(baseline.schedule[0].payment, 2)
+    expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
+  })
+
+  it('SAC payment keeps contracted term with lower amort', () => {
+    const baseline = runSim({ property: 300_000, down: 60_000, months: 36, rate: 0.01, mode: 'sac' })
+    const withExtras = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'sac',
+      balloons: monthlyExtras,
+      extraEffect: 'payment'
+    })
+
+    expect(withExtras.schedule).toHaveLength(36)
+    expect(withExtras.schedule[0].payment).toBeLessThan(baseline.schedule[0].payment)
+    expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
+  })
+
+  it('SAC term truncates when extras pay off early', () => {
+    const withExtras = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'sac',
+      balloons: monthlyExtras,
+      extraEffect: 'term'
+    })
+
+    expect(withExtras.effectiveMonths).toBeLessThan(36)
+    expect(withExtras.schedule).toHaveLength(withExtras.effectiveMonths)
+    expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
   })
 })
 

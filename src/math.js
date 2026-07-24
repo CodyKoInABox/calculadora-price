@@ -36,22 +36,136 @@ export function curveWeightAt(progress, curveControls) {
 }
 
 /**
- * @param {{ property: number, down: number, months: number, rate: number, mode: 'price'|'growing'|'sac', balloons: Map<number, number>, curveControls: number[] }} input
+ * Expand extra-payment rows (once / monthly / yearly / every N) into month → amount map.
+ * @param {boolean} enabled
+ * @param {Array<{ recurrence?: string, month?: number|string, everyN?: number|string, amount?: string|number }>} extras
+ * @param {number} months
  */
-export function simulateFinancing({ property, down, months, rate, mode, balloons, curveControls }) {
+export function extrasToMap(enabled, extras, months) {
+  if (!enabled) return new Map()
+  const map = new Map()
+  const horizon = Math.max(1, months)
+
+  const add = (month, value) => {
+    if (value <= 0) return
+    const m = Math.max(1, Math.min(horizon, month))
+    map.set(m, (map.get(m) || 0) + value)
+  }
+
+  for (const item of extras) {
+    const value = Math.max(0, parseMoney(item.amount))
+    const start = Math.max(1, Math.min(horizon, Number(item.month) || 1))
+    const recurrence = item.recurrence || 'once'
+
+    if (recurrence === 'once') {
+      add(start, value)
+      continue
+    }
+
+    let step
+    if (recurrence === 'yearly') step = 12
+    else if (recurrence === 'every') step = Math.max(2, Number(item.everyN) || 2)
+    else if (recurrence === 'monthly') step = 1
+    else {
+      add(start, value)
+      continue
+    }
+
+    for (let m = start; m <= horizon; m += step) add(m, value)
+  }
+
+  return map
+}
+
+function binarySearchScale(closingBalance) {
+  let low = 0
+  let high = 1
+  while (closingBalance(high) > 0 && high < 1e8) high *= 2
+  for (let i = 0; i < 120; i++) {
+    const mid = (low + high) / 2
+    if (closingBalance(mid) > 0) low = mid
+    else high = mid
+  }
+  return high
+}
+
+function applyOverflowCap(regular, balloon, amountDue) {
+  let nextRegular = regular
+  let nextBalloon = balloon
+  if (nextRegular + nextBalloon > amountDue) {
+    if (nextBalloon >= amountDue) {
+      nextBalloon = amountDue
+      nextRegular = 0
+    } else {
+      nextRegular = amountDue - nextBalloon
+    }
+  }
+  return { regular: nextRegular, balloon: nextBalloon }
+}
+
+function walkSchedule({ principal, months, rate, balloons, regularForMonth, truncate }) {
+  const schedule = []
+  let balance = principal
+  let totalInterest = 0
+  let totalRegular = 0
+  let totalBalloon = 0
+
+  for (let m = 1; m <= months; m++) {
+    if (truncate && balance <= 1e-9) break
+
+    const interest = balance * rate
+    const amountDue = balance + interest
+    let regular = regularForMonth(m, balance, interest)
+    let balloon = balloons.get(m) || 0
+    ;({ regular, balloon } = applyOverflowCap(regular, balloon, amountDue))
+
+    const amortization = Math.max(0, regular - interest) + balloon
+    balance = Math.max(0, amountDue - regular - balloon)
+    totalInterest += interest
+    totalRegular += regular
+    totalBalloon += balloon
+    schedule.push({ month: m, payment: regular, interest, amortization, balloon, balance })
+
+    if (truncate && balance <= 1e-9) break
+  }
+
+  return { schedule, totalInterest, totalRegular, totalBalloon }
+}
+
+/**
+ * @param {{ property: number, down: number, months: number, rate: number, mode: 'price'|'growing'|'sac', balloons: Map<number, number>, curveControls: number[], extraEffect?: 'payment'|'term' }} input
+ */
+export function simulateFinancing({
+  property,
+  down,
+  months,
+  rate,
+  mode,
+  balloons,
+  curveControls,
+  extraEffect = 'payment'
+}) {
   const principal = property - down
 
   if (property <= 0 || principal <= 0) {
     return { error: 'Informe um valor do imóvel maior que a entrada.' }
   }
 
+  const effect = extraEffect === 'term' ? 'term' : 'payment'
   const totalBalloonsPlanned = [...balloons.values()].reduce((a, b) => a + b, 0)
 
   if (mode === 'sac') {
-    return simulateSac({ property, down, principal, months, rate, balloons, totalBalloonsPlanned })
+    return simulateSac({
+      property,
+      down,
+      principal,
+      months,
+      rate,
+      balloons,
+      totalBalloonsPlanned,
+      extraEffect: effect
+    })
   }
-
-  const schedule = []
 
   let base = []
   if (mode === 'price') {
@@ -64,51 +178,39 @@ export function simulateFinancing({ property, down, months, rate, mode, balloons
     )
   }
 
+  const balloonsForScale = effect === 'term' ? new Map() : balloons
   const closingBalance = factor => {
     let balance = principal
     for (let m = 1; m <= months; m++) {
       const interest = balance * rate
       const regular = base[m - 1] * factor
-      const balloon = Math.min(balloons.get(m) || 0, Math.max(0, balance + interest - regular))
+      const balloon = Math.min(
+        balloonsForScale.get(m) || 0,
+        Math.max(0, balance + interest - regular)
+      )
       balance = balance + interest - regular - balloon
     }
     return balance
   }
 
-  let low = 0, high = 1
-  while (closingBalance(high) > 0 && high < 1e8) high *= 2
-  for (let i = 0; i < 120; i++) {
-    const mid = (low + high) / 2
-    if (closingBalance(mid) > 0) low = mid
-    else high = mid
-  }
-  const factor = high
-
-  let balance = principal, totalInterest = 0, totalRegular = 0, totalBalloon = 0
-  for (let m = 1; m <= months; m++) {
-    const interest = balance * rate
-    let regular = base[m - 1] * factor
-    let balloon = balloons.get(m) || 0
-    const amountDue = balance + interest
-
-    if (regular + balloon > amountDue) {
-      if (balloon >= amountDue) { balloon = amountDue; regular = 0 }
-      else regular = amountDue - balloon
-    }
-
-    const amortization = Math.max(0, regular - interest) + balloon
-    balance = Math.max(0, amountDue - regular - balloon)
-    totalInterest += interest
-    totalRegular += regular
-    totalBalloon += balloon
-    schedule.push({ month: m, payment: regular, interest, amortization, balloon, balance })
-  }
+  const factor = binarySearchScale(closingBalance)
+  const truncate = effect === 'term'
+  const { schedule, totalInterest, totalRegular, totalBalloon } = walkSchedule({
+    principal,
+    months,
+    rate,
+    balloons,
+    truncate,
+    regularForMonth: m => base[m - 1] * factor
+  })
 
   return {
     property,
     down,
     principal,
     months,
+    effectiveMonths: schedule.length,
+    extraEffect: effect,
     totalInterest,
     totalRegular,
     totalBalloon,
@@ -117,44 +219,57 @@ export function simulateFinancing({ property, down, months, rate, mode, balloons
   }
 }
 
-/** SAC: constant amortization (principal/n), declining interest + payment. */
-function simulateSac({ property, down, principal, months, rate, balloons, totalBalloonsPlanned }) {
-  const amortBase = principal / months
-  const schedule = []
-  let balance = principal
-  let totalInterest = 0
-  let totalRegular = 0
-  let totalBalloon = 0
+/** SAC: constant amortization; payment mode re-scales amort so extras keep contracted term. */
+function simulateSac({
+  property,
+  down,
+  principal,
+  months,
+  rate,
+  balloons,
+  totalBalloonsPlanned,
+  extraEffect
+}) {
+  let amortBase = principal / months
 
-  for (let m = 1; m <= months; m++) {
-    const interest = balance * rate
-    const amountDue = balance + interest
-    let amort = m === months ? balance : Math.min(amortBase, balance)
-    let regular = amort + interest
-    let balloon = balloons.get(m) || 0
-
-    if (regular + balloon > amountDue) {
-      if (balloon >= amountDue) {
-        balloon = amountDue
-        regular = 0
-      } else {
-        regular = amountDue - balloon
+  if (extraEffect === 'payment' && balloons.size > 0) {
+    const closingBalance = candidate => {
+      let balance = principal
+      for (let m = 1; m <= months; m++) {
+        const interest = balance * rate
+        const amort = Math.min(candidate, balance)
+        const regular = amort + interest
+        const balloon = Math.min(
+          balloons.get(m) || 0,
+          Math.max(0, balance + interest - regular)
+        )
+        balance = balance + interest - regular - balloon
       }
+      return balance
     }
-
-    const amortization = Math.max(0, regular - interest) + balloon
-    balance = Math.max(0, amountDue - regular - balloon)
-    totalInterest += interest
-    totalRegular += regular
-    totalBalloon += balloon
-    schedule.push({ month: m, payment: regular, interest, amortization, balloon, balance })
+    amortBase = binarySearchScale(closingBalance)
   }
+
+  const truncate = extraEffect === 'term'
+  const { schedule, totalInterest, totalRegular, totalBalloon } = walkSchedule({
+    principal,
+    months,
+    rate,
+    balloons,
+    truncate,
+    regularForMonth: (m, balance, interest) => {
+      const amort = (!truncate && m === months) ? balance : Math.min(amortBase, balance)
+      return amort + interest
+    }
+  })
 
   return {
     property,
     down,
     principal,
     months,
+    effectiveMonths: schedule.length,
+    extraEffect,
     totalInterest,
     totalRegular,
     totalBalloon,
