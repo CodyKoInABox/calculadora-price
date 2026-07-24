@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { curvePresets, extrasToMap, parseMoney, simulateFinancing } from './math'
+import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number } from './format'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
@@ -209,6 +209,9 @@ export default function App() {
   const [scenarioA, setScenarioA] = useState(defaultScenarioA)
   const [scenarioB, setScenarioB] = useState(defaultScenarioB)
   const [activeScenario, setActiveScenario] = useState('a')
+  const [direction, setDirection] = useState('forward')
+  const [solveFor, setSolveFor] = useState('principal')
+  const [maxPayment, setMaxPayment] = useState('8.000,00')
   const [result, setResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)
@@ -217,6 +220,7 @@ export default function App() {
   const downId = useId()
   const monthsId = useId()
   const interestId = useId()
+  const maxPaymentId = useId()
 
   const runSimulate = useCallback((overrides = {}) => {
     const nextMode = overrides.mode ?? mode
@@ -225,12 +229,25 @@ export default function App() {
     const nextEnabled = overrides.balloonEnabled ?? balloonEnabled
     const nextEffect = overrides.extraEffect ?? extraEffect
     const nextMonths = Math.max(1, Number(overrides.months ?? months) || 1)
+    const nextDirection = overrides.direction ?? direction
+    const nextSolveFor = overrides.solveFor ?? solveFor
     const property = parseMoney(overrides.propertyValue ?? propertyValue)
     const down = parseMoney(overrides.downPayment ?? downPayment)
+    const targetPayment = parseMoney(overrides.maxPayment ?? maxPayment)
     const rate = Math.max(0, Number(overrides.interest ?? interest) || 0) / 100
     const balloonMap = extrasToMap(nextEnabled, nextBalloons, nextMonths)
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
+    const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
+
+    const syncSolvedFields = out => {
+      if (!out || out.error || !out.solved) return
+      if (out.solved === 'principal') {
+        setPropertyValue(number.format(out.property))
+      } else if (out.solved === 'down') {
+        setDownPayment(number.format(out.down))
+      }
+    }
 
     if (nextMode === 'ab') {
       const outA = runScenario(property, nextA)
@@ -255,37 +272,64 @@ export default function App() {
         extraEffect: nextEffect,
         curveControls: nextControls
       }
-      const priceOut = simulateFinancing({ ...shared, mode: 'price' })
-      const sacOut = simulateFinancing({ ...shared, mode: 'sac' })
+      let priceOut
+      let sacOut
+      if (useInverse) {
+        const inverseShared = {
+          ...shared,
+          targetPayment,
+          solveFor: nextSolveFor
+        }
+        priceOut = solveFromMaxPayment({ ...inverseShared, mode: 'price' })
+        sacOut = solveFromMaxPayment({ ...inverseShared, mode: 'sac' })
+      } else {
+        priceOut = simulateFinancing({ ...shared, mode: 'price' })
+        sacOut = simulateFinancing({ ...shared, mode: 'sac' })
+      }
       if (priceOut.error || sacOut.error) {
         alert(priceOut.error || sacOut.error)
         return
       }
+      if (useInverse) syncSolvedFields(priceOut)
       setCompareResult({ price: priceOut, sac: sacOut })
       setResult(null)
       setAbResult(null)
       return
     }
 
-    const out = simulateFinancing({
-      property,
-      down,
-      months: nextMonths,
-      rate,
-      mode: nextMode,
-      balloons: balloonMap,
-      extraEffect: nextEffect,
-      curveControls: nextControls
-    })
+    const out = useInverse
+      ? solveFromMaxPayment({
+          property,
+          down,
+          months: nextMonths,
+          rate,
+          mode: nextMode,
+          balloons: balloonMap,
+          extraEffect: nextEffect,
+          curveControls: nextControls,
+          targetPayment,
+          solveFor: nextSolveFor
+        })
+      : simulateFinancing({
+          property,
+          down,
+          months: nextMonths,
+          rate,
+          mode: nextMode,
+          balloons: balloonMap,
+          extraEffect: nextEffect,
+          curveControls: nextControls
+        })
 
     if (out.error) {
       alert(out.error)
       return
     }
+    if (useInverse) syncSolvedFields(out)
     setResult(out)
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, scenarioA, scenarioB])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, scenarioA, scenarioB, direction, solveFor, maxPayment])
 
   useEffect(() => {
     runSimulate()
@@ -386,6 +430,14 @@ export default function App() {
 
   const currentScenario = activeScenario === 'a' ? scenarioA : scenarioB
   const isAb = mode === 'ab'
+  const isInverse = direction === 'inverse' && !isAb
+  const showProperty = !isInverse || solveFor === 'down'
+  const showDown = !isInverse || solveFor === 'principal'
+  const inverseSolved = isInverse
+    ? (result?.solved ? result : (compareResult?.price?.solved ? compareResult.price : null))
+    : null
+  const showSolvedDown = inverseSolved?.solved === 'down'
+  const showSolvedProperty = inverseSolved?.solved === 'principal'
 
   return (
     <main className="page">
@@ -404,13 +456,43 @@ export default function App() {
           <h2 className="panel-title">Dados do financiamento</h2>
           <p className="panel-subtitle">Preencha os campos abaixo para montar o fluxo completo.</p>
 
-          <div className="field">
-            <label htmlFor={propertyId}>Valor do imóvel</label>
-            <div className="input-wrap">
-              <span className="prefix">R$</span>
-              <input id={propertyId} className="has-prefix" value={propertyValue} onChange={moneyChange(setPropertyValue)} inputMode="decimal" />
+          {!isAb && (
+            <div className="field">
+              <label>Direção do cálculo</label>
+              <div className="segmented">
+                <button
+                  type="button"
+                  className={direction === 'forward' ? 'active' : ''}
+                  onClick={() => {
+                    setDirection('forward')
+                    runSimulate({ direction: 'forward' })
+                  }}
+                >
+                  Calcular parcela
+                </button>
+                <button
+                  type="button"
+                  className={direction === 'inverse' ? 'active' : ''}
+                  onClick={() => {
+                    setDirection('inverse')
+                    runSimulate({ direction: 'inverse' })
+                  }}
+                >
+                  A partir da parcela
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {showProperty && (
+            <div className="field">
+              <label htmlFor={propertyId}>Valor do imóvel</label>
+              <div className="input-wrap">
+                <span className="prefix">R$</span>
+                <input id={propertyId} className="has-prefix" value={propertyValue} onChange={moneyChange(setPropertyValue)} inputMode="decimal" />
+              </div>
+            </div>
+          )}
 
           <div className="field">
             <label>Modelo de parcelas</label>
@@ -509,13 +591,101 @@ export default function App() {
             </>
           ) : (
             <>
-              <div className="field">
-                <label htmlFor={downId}>Entrada</label>
-                <div className="input-wrap">
-                  <span className="prefix">R$</span>
-                  <input id={downId} className="has-prefix" value={downPayment} onChange={moneyChange(setDownPayment)} inputMode="decimal" />
+              {isInverse && (
+                <>
+                  <div className="field">
+                    <label>Resolver</label>
+                    <div className="segmented">
+                      <button
+                        type="button"
+                        className={solveFor === 'principal' ? 'active' : ''}
+                        onClick={() => {
+                          setSolveFor('principal')
+                          runSimulate({ solveFor: 'principal', direction: 'inverse' })
+                        }}
+                      >
+                        Quanto financiar
+                      </button>
+                      <button
+                        type="button"
+                        className={solveFor === 'down' ? 'active' : ''}
+                        onClick={() => {
+                          setSolveFor('down')
+                          runSimulate({ solveFor: 'down', direction: 'inverse' })
+                        }}
+                      >
+                        Entrada mínima
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={maxPaymentId}>Parcela máxima</label>
+                    <div className="input-wrap">
+                      <span className="prefix">R$</span>
+                      <input
+                        id={maxPaymentId}
+                        className="has-prefix"
+                        value={maxPayment}
+                        onChange={moneyChange(setMaxPayment)}
+                        inputMode="decimal"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showDown && (
+                <div className="field">
+                  <label htmlFor={downId}>Entrada</label>
+                  <div className="input-wrap">
+                    <span className="prefix">R$</span>
+                    <input id={downId} className="has-prefix" value={downPayment} onChange={moneyChange(setDownPayment)} inputMode="decimal" />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {showSolvedDown && (
+                <div className="field">
+                  <label htmlFor={downId}>Entrada mínima calculada{mode === 'compare' ? ' (Price)' : ''}</label>
+                  <div className="input-wrap">
+                    <span className="prefix">R$</span>
+                    <input
+                      id={downId}
+                      className="has-prefix"
+                      value={number.format(inverseSolved.down)}
+                      readOnly
+                      aria-readonly="true"
+                    />
+                  </div>
+                  {mode === 'compare' && compareResult?.sac?.solved === 'down' && (
+                    <p className="footnote" style={{ marginTop: 8 }}>
+                      SAC: {number.format(compareResult.sac.down)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {showSolvedProperty && (
+                <div className="field">
+                  <label htmlFor={propertyId}>Valor do imóvel calculado{mode === 'compare' ? ' (Price)' : ''}</label>
+                  <div className="input-wrap">
+                    <span className="prefix">R$</span>
+                    <input
+                      id={propertyId}
+                      className="has-prefix"
+                      value={number.format(inverseSolved.property)}
+                      readOnly
+                      aria-readonly="true"
+                    />
+                  </div>
+                  {mode === 'compare' && compareResult?.sac?.solved === 'principal' && (
+                    <p className="footnote" style={{ marginTop: 8 }}>
+                      SAC: imóvel {number.format(compareResult.sac.property)}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="field-row">
                 <div className="field">
@@ -559,7 +729,9 @@ export default function App() {
             </>
           )}
 
-          <button className="calculate" type="button" onClick={() => runSimulate()}>Calcular financiamento</button>
+          <button className="calculate" type="button" onClick={() => runSimulate()}>
+            {isInverse ? 'Calcular limite' : 'Calcular financiamento'}
+          </button>
           <p className="footnote">Simulação estimativa. Tarifas, seguros, correção monetária e impostos não estão incluídos.</p>
         </aside>
 

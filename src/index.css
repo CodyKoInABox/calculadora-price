@@ -217,6 +217,17 @@ input, select {
 }
 input.has-prefix { padding-left: 42px; }
 input.has-suffix { padding-right: 52px; }
+input:read-only {
+  background: #f0f1f6;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: default;
+}
+input:read-only:focus {
+  border-color: var(--border);
+  box-shadow: none;
+  background: #f0f1f6;
+}
 /* Spinner do number fica em cima do .suffix — some e libera o espaço */
 input.has-suffix[type="number"] {
   -moz-appearance: textfield;

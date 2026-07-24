@@ -118,27 +118,42 @@ export default function ComparePanel({ price, sac, onExport }) {
   const sacPaid = totalPaid(sac)
   const len = Math.min(price.schedule.length, sac.schedule.length)
 
+  const inverseSolve = price.solved
+  const inverseEyebrow = inverseSolve
+    ? `Price × SAC · parcela máx. ≤ ${brl.format(price.targetPayment)} · ${
+        inverseSolve === 'principal' ? 'quanto financiar' : 'entrada mínima'
+      }`
+    : null
+  let verdictDetail
+  if (inverseSolve) {
+    verdictDetail = 'Cada modelo foi invertido com a mesma parcela máxima — principal/entrada podem diferir entre Price e SAC.'
+  } else if (sacSaves) {
+    verdictDetail = 'Amortização constante no SAC reduz o saldo mais cedo; a 1ª parcela fica maior e o total de juros menor.'
+  } else {
+    verdictDetail = 'Neste cenário o Price ficou com menos juros totais — confira parcelas e balões mês a mês.'
+  }
+
   return (
     <>
       <section className="panel compare-verdict">
         <div className="compare-verdict-copy">
           <p className="compare-eyebrow">
-            Price × SAC · mesmo principal, taxa e prazo
-            {(price.extraEffect === 'term' && price.effectiveMonths < price.months) ||
-            (sac.extraEffect === 'term' && sac.effectiveMonths < sac.months)
-              ? ` · efetivo Price ${prazoLabel(price)} / SAC ${prazoLabel(sac)}`
-              : ''}
+            {inverseEyebrow || (
+              <>
+                Price × SAC · mesmo principal, taxa e prazo
+                {(price.extraEffect === 'term' && price.effectiveMonths < price.months) ||
+                (sac.extraEffect === 'term' && sac.effectiveMonths < sac.months)
+                  ? ` · efetivo Price ${prazoLabel(price)} / SAC ${prazoLabel(sac)}`
+                  : ''}
+              </>
+            )}
           </p>
           <h2 className="panel-title">
             {sacSaves
               ? <>SAC economiza <span className="compare-save">{brl.format(interestDelta)}</span> em juros</>
               : <>Price economiza <span className="compare-save">{brl.format(-interestDelta)}</span> em juros</>}
           </h2>
-          <p className="panel-subtitle tight">
-            {sacSaves
-              ? 'Amortização constante no SAC reduz o saldo mais cedo; a 1ª parcela fica maior e o total de juros menor.'
-              : 'Neste cenário o Price ficou com menos juros totais — confira parcelas e balões mês a mês.'}
-          </p>
+          <p className="panel-subtitle tight">{verdictDetail}</p>
         </div>
         <div className="compare-totals">
           <div className="compare-total price">
@@ -159,6 +174,16 @@ export default function ComparePanel({ price, sac, onExport }) {
           <h3 className="compare-side-title">Tabela Price</h3>
           <p className="panel-subtitle tight">Parcelas fixas (sem balão).</p>
           <div className="compare-metrics">
+            {price.solved === 'down' && (
+              <div className="metric">
+                <span>Entrada mínima</span>
+                <strong>{brl.format(price.down)}</strong>
+              </div>
+            )}
+            <div className="metric">
+              <span>Valor financiado</span>
+              <strong>{brl.format(price.principal)}</strong>
+            </div>
             <div className="metric">
               <span>1ª parcela</span>
               <strong>{brl.format(price.schedule[0]?.payment || 0)}</strong>
@@ -182,6 +207,16 @@ export default function ComparePanel({ price, sac, onExport }) {
           <h3 className="compare-side-title">SAC</h3>
           <p className="panel-subtitle tight">Amortização constante, parcela decrescente.</p>
           <div className="compare-metrics">
+            {sac.solved === 'down' && (
+              <div className="metric">
+                <span>Entrada mínima</span>
+                <strong>{brl.format(sac.down)}</strong>
+              </div>
+            )}
+            <div className="metric">
+              <span>Valor financiado</span>
+              <strong>{brl.format(sac.principal)}</strong>
+            </div>
             <div className="metric">
               <span>1ª parcela</span>
               <strong>{brl.format(sac.schedule[0]?.payment || 0)}</strong>

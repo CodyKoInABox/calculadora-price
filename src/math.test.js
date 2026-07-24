@@ -6,6 +6,8 @@ import {
   curvePresets,
   extrasToMap,
   simulateFinancing,
+  maxRegularPayment,
+  solveFromMaxPayment,
   CURVE_MIN,
   CURVE_MAX
 } from './math'
@@ -399,5 +401,150 @@ describe('simulateFinancing — curva crescente', () => {
     const first = r.schedule[0].payment
     const last = r.schedule.at(-1).payment
     expect(last).toBeGreaterThan(first)
+  })
+})
+
+describe('solveFromMaxPayment', () => {
+  const base = {
+    months: 36,
+    rate: 0.01,
+    balloons: new Map(),
+    curveControls: [...curvePresets.linear],
+    extraEffect: 'payment'
+  }
+
+  it('round-trips Price principal from max payment', () => {
+    const forward = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'price'
+    })
+    const target = maxRegularPayment(forward.schedule)
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'price',
+      targetPayment: target,
+      solveFor: 'principal',
+      down: 60_000,
+      property: 300_000
+    })
+
+    expect(inv.error).toBeUndefined()
+    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.02)
+  })
+
+  it('round-trips Price down from max payment', () => {
+    const forward = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'price'
+    })
+    const target = maxRegularPayment(forward.schedule)
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'price',
+      targetPayment: target,
+      solveFor: 'down',
+      property: 300_000,
+      down: 0
+    })
+
+    expect(inv.error).toBeUndefined()
+    expect(inv.down).toBeCloseTo(forward.down, 0)
+    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.02)
+  })
+
+  it('keeps SAC max payment ≤ target', () => {
+    const forward = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'sac'
+    })
+    const target = maxRegularPayment(forward.schedule)
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'sac',
+      targetPayment: target,
+      solveFor: 'principal',
+      down: 60_000,
+      property: 300_000
+    })
+
+    expect(inv.error).toBeUndefined()
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
+    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+  })
+
+  it('keeps growing max payment ≤ target', () => {
+    const forward = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'growing',
+      curveControls: [...curvePresets.linear]
+    })
+    const target = maxRegularPayment(forward.schedule)
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'growing',
+      targetPayment: target,
+      solveFor: 'principal',
+      down: 60_000,
+      property: 300_000,
+      curveControls: [...curvePresets.linear]
+    })
+
+    expect(inv.error).toBeUndefined()
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
+    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+  })
+
+  it('converges with extras in payment effect', () => {
+    const balloons = new Map([[12, 20_000], [24, 20_000]])
+    const forward = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'price',
+      balloons,
+      extraEffect: 'payment'
+    })
+    const target = maxRegularPayment(forward.schedule)
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'price',
+      balloons,
+      extraEffect: 'payment',
+      targetPayment: target,
+      solveFor: 'down',
+      property: 300_000,
+      down: 0
+    })
+
+    expect(inv.error).toBeUndefined()
+    expect(inv.down).toBeCloseTo(forward.down, 0)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
+  })
+
+  it('rejects non-positive target payment', () => {
+    const inv = solveFromMaxPayment({
+      ...base,
+      mode: 'price',
+      targetPayment: 0,
+      solveFor: 'principal',
+      down: 60_000,
+      property: 300_000
+    })
+    expect(inv.error).toBeTruthy()
   })
 })

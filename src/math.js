@@ -89,6 +89,96 @@ function binarySearchScale(closingBalance) {
   return high
 }
 
+/** Largest x ≥ 0 such that isFeasible(x) is true (assumes feasibility is monotone decreasing in x). */
+function binarySearchMaxFeasible(isFeasible) {
+  if (!isFeasible(0)) return 0
+  let low = 0
+  let high = 1
+  while (isFeasible(high) && high < 1e12) high *= 2
+  for (let i = 0; i < 120; i++) {
+    const mid = (low + high) / 2
+    if (isFeasible(mid)) low = mid
+    else high = mid
+  }
+  return low
+}
+
+export function maxRegularPayment(schedule) {
+  if (!schedule?.length) return 0
+  let max = 0
+  for (const row of schedule) {
+    if (row.payment > max) max = row.payment
+  }
+  return max
+}
+
+/**
+ * Invert financing: find max principal or min down so that max regular installment ≤ targetPayment.
+ * @param {{ targetPayment: number, solveFor: 'principal'|'down', property: number, down: number, months: number, rate: number, mode: 'price'|'growing'|'sac', balloons: Map<number, number>, curveControls: number[], extraEffect?: 'payment'|'term' }} input
+ */
+export function solveFromMaxPayment({
+  targetPayment,
+  solveFor = 'principal',
+  property,
+  down,
+  months,
+  rate,
+  mode,
+  balloons,
+  curveControls,
+  extraEffect = 'payment'
+}) {
+  if (targetPayment <= 0) {
+    return { error: 'Informe uma parcela máxima maior que zero.' }
+  }
+  if (solveFor === 'down' && property <= 0) {
+    return { error: 'Informe um valor do imóvel válido.' }
+  }
+  if (solveFor === 'principal' && down < 0) {
+    return { error: 'Informe uma entrada válida.' }
+  }
+
+  const shared = { months, rate, mode, balloons, curveControls, extraEffect }
+  const principalCap = solveFor === 'down' ? property * (1 - 1e-12) : Infinity
+
+  const probe = principal => {
+    if (principal <= 0) return { schedule: [], principal: 0 }
+    if (solveFor === 'down') {
+      if (principal >= property) return { error: 'Principal excede o imóvel.' }
+      return simulateFinancing({ ...shared, property, down: property - principal })
+    }
+    const fixedDown = Math.max(0, down)
+    return simulateFinancing({ ...shared, property: fixedDown + principal, down: fixedDown })
+  }
+
+  const isFeasible = principal => {
+    if (principal <= 0) return true
+    if (principal > principalCap) return false
+    const out = probe(principal)
+    if (out.error) return false
+    return maxRegularPayment(out.schedule) <= targetPayment + 1e-6
+  }
+
+  if (!isFeasible(0)) {
+    return { error: 'Parcela máxima abaixo do mínimo possível.' }
+  }
+
+  const principal = binarySearchMaxFeasible(isFeasible)
+  if (principal <= 1e-6) {
+    return { error: 'Com essa parcela máxima o valor financiável fica zerado.' }
+  }
+
+  const result = probe(principal)
+  if (result.error) return result
+
+  return {
+    ...result,
+    solved: solveFor,
+    targetPayment,
+    maxPayment: maxRegularPayment(result.schedule)
+  }
+}
+
 function applyOverflowCap(regular, balloon, amountDue) {
   let nextRegular = regular
   let nextBalloon = balloon

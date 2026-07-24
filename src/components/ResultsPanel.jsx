@@ -108,6 +108,12 @@ export default function ResultsPanel({ result, mode, onExport }) {
 
   const totalPaid = result.down + result.totalRegular + result.totalBalloon
   const termReduced = result.extraEffect === 'term' && result.effectiveMonths < result.months
+  let inverseNote = null
+  if (result.solved === 'principal') {
+    inverseNote = `Ajustado para parcela máx. ≤ ${brl.format(result.targetPayment)} (quanto financiar).`
+  } else if (result.solved === 'down') {
+    inverseNote = `Ajustado para parcela máx. ≤ ${brl.format(result.targetPayment)} (entrada mínima).`
+  }
 
   return (
     <>
@@ -115,15 +121,31 @@ export default function ResultsPanel({ result, mode, onExport }) {
         <div className="summary-top">
           <div>
             <h2 className="panel-title">Resumo da simulação</h2>
-            <p className="panel-subtitle tight">Visão geral do fluxo de pagamento.</p>
+            <p className="panel-subtitle tight">
+              {inverseNote || 'Visão geral do fluxo de pagamento.'}
+            </p>
           </div>
           <div className="status">Saldo liquidado</div>
         </div>
         <div className="cards">
+          {result.solved === 'down' && (
+            <div className="metric">
+              <span>Entrada mínima</span>
+              <strong>{brl.format(result.down)}</strong>
+              <small>Para parcela ≤ {brl.format(result.targetPayment)}</small>
+            </div>
+          )}
+          {result.solved === 'principal' && (
+            <div className="metric">
+              <span>Valor do imóvel</span>
+              <strong>{brl.format(result.property)}</strong>
+              <small>Entrada {brl.format(result.down)} + financiado</small>
+            </div>
+          )}
           <div className="metric">
             <span>Valor financiado</span>
             <strong>{brl.format(result.principal)}</strong>
-            <small>Após entrada</small>
+            <small>{result.solved === 'down' ? 'Imóvel − entrada mínima' : 'Após entrada'}</small>
           </div>
           <div className="metric">
             <span>Primeira parcela</span>
