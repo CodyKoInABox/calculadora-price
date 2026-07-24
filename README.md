@@ -1,0 +1,23 @@
+# Calculadora PRICE Avançada
+
+Simulador de financiamento (Tabela Price) com curva interativa e balões.
+
+## Dev
+
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+npm run preview
+```
+
+## GitHub Pages
+
+O site publica em `https://CodyKoInABox.github.io/pricecalc/` via GitHub Actions (push na `main`).
+
+No repo: **Settings → Pages → Source → GitHub Actions**.

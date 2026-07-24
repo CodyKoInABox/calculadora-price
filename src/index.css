@@ -147,7 +147,7 @@ input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px 
   overflow: hidden; cursor: grab; touch-action: none;
 }
 .curve-editor-wrap.dragging { cursor: grabbing; }
-#curveEditor:focus-visible { outline: 3px solid rgba(82,79,160,.24); outline-offset: -3px; border-radius: 12px; }
+.curve-editor-wrap canvas:focus-visible { outline: 3px solid rgba(82,79,160,.24); outline-offset: -3px; border-radius: 12px; }
 .curve-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 600; padding: 7px 7px 0; }
 .curve-live { color: var(--success); font-size: 10px; font-weight: 800; white-space: nowrap; }
 

@@ -1,146 +1,16 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora PRICE Avançada</title>
-  <meta name="description" content="Simule financiamentos pela Tabela Price, com parcelas crescentes e balões personalizados." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <main class="page">
-    <header class="hero">
-      <h1>Calculadora PRICE Avançada</h1>
-    </header>
-
-    <section class="workspace">
-      <aside class="panel form-panel">
-        <h2 class="panel-title">Dados do financiamento</h2>
-        <p class="panel-subtitle">Preencha os campos abaixo para montar o fluxo completo.</p>
-
-        <div class="field">
-          <label for="propertyValue">Valor do imóvel</label>
-          <div class="input-wrap"><span class="prefix">R$</span><input id="propertyValue" class="has-prefix money" value="300.000,00" inputmode="decimal"></div>
-        </div>
-
-        <div class="field">
-          <label for="downPayment">Entrada</label>
-          <div class="input-wrap"><span class="prefix">R$</span><input id="downPayment" class="has-prefix money" value="60.000,00" inputmode="decimal"></div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label for="months">Prazo</label>
-            <div class="input-wrap"><input id="months" type="number" value="36" min="1" max="600" class="has-suffix"><span class="suffix">meses</span></div>
-          </div>
-          <div class="field">
-            <label for="interest">Juros ao mês</label>
-            <div class="input-wrap"><input id="interest" type="number" value="1" min="0" step="0.01" class="has-suffix"><span class="suffix">%</span></div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Modelo de parcelas</label>
-          <div class="segmented">
-            <button type="button" class="active" data-mode="price">Price tradicional</button>
-            <button type="button" data-mode="growing">Curva interativa</button>
-          </div>
-        </div>
-
-        <div id="growingOptions" class="conditional">
-          <div class="curve-builder">
-            <div class="curve-builder-head">
-              <div><strong>Desenhe a evolução das parcelas</strong><span>Arraste os pontos para alterar a inclinação.</span></div>
-              <div class="curve-live">● RECÁLCULO AO VIVO</div>
-            </div>
-            <div class="curve-presets" aria-label="Formatos prontos de curva">
-              <button type="button" class="curve-preset active" data-curve-preset="linear">Crescente</button>
-              <button type="button" class="curve-preset" data-curve-preset="hill">Sobe e desce</button>
-              <button type="button" class="curve-preset" data-curve-preset="fast-start">Rápido → suave</button>
-              <button type="button" class="curve-preset" data-curve-preset="fast-end">Suave → rápido</button>
-            </div>
-            <div class="curve-editor-wrap" id="curveEditorWrap">
-              <canvas id="curveEditor" tabindex="0" role="img" aria-label="Editor da curva das parcelas. Arraste os seis pontos; use as setas esquerda e direita para selecionar e para cima e para baixo para ajustar."></canvas>
-            </div>
-            <div class="curve-axis"><span>Primeira parcela</span><span>Última parcela</span></div>
-          </div>
-          <div class="footnote">A altura representa o peso relativo de cada parcela. O sistema converte o desenho em valores reais e ajusta o fluxo para liquidar todo o saldo.</div>
-        </div>
-
-        <div class="switch-line">
-          <div class="switch-copy"><strong>Adicionar balões</strong><span>Pagamentos extras em meses específicos</span></div>
-          <label class="switch"><input id="balloonToggle" type="checkbox"><span class="slider"></span></label>
-        </div>
-
-        <div id="balloonOptions" class="conditional balloons">
-          <div class="balloons-head"><strong>Balões programados</strong><button type="button" class="btn-small" id="addBalloon">+ Adicionar</button></div>
-          <div id="balloonList"></div>
-          <div class="footnote">Os balões amortizam o saldo devedor no mês informado. Os juros do período continuam calculados normalmente.</div>
-        </div>
-
-        <button class="calculate" id="calculate">Calcular financiamento</button>
-        <p class="footnote">Simulação estimativa. Tarifas, seguros, correção monetária e impostos não estão incluídos.</p>
-      </aside>
-
-      <div class="results" id="results">
-        <section class="panel empty" id="emptyState">
-          <div class="empty-icon">↗</div>
-          <h2 class="panel-title">Sua simulação aparecerá aqui</h2>
-          <p>Preencha os dados e clique em calcular para visualizar parcelas, juros, balões e evolução do saldo.</p>
-        </section>
-
-        <section class="panel summary" id="summary" hidden>
-          <div class="summary-top">
-            <div><h2 class="panel-title">Resumo da simulação</h2><p class="panel-subtitle tight">Visão geral do fluxo de pagamento.</p></div>
-            <div class="status">Saldo liquidado</div>
-          </div>
-          <div class="cards">
-            <div class="metric"><span>Valor financiado</span><strong id="financedMetric">—</strong><small>Após entrada</small></div>
-            <div class="metric"><span>Primeira parcela</span><strong id="firstMetric">—</strong><small id="firstMetricHint">Parcela mensal</small></div>
-            <div class="metric"><span>Última parcela</span><strong id="lastMetric">—</strong><small>Sem considerar balão separado</small></div>
-            <div class="metric"><span>Total pago</span><strong id="totalMetric">—</strong><small>Entrada + parcelas + balões</small></div>
-          </div>
-        </section>
-
-        <div class="visual-grid" id="visualGrid" hidden>
-          <section class="panel chart-card">
-            <h2 class="panel-title">Evolução das parcelas</h2>
-            <p class="panel-subtitle">Pagamento mensal e saldo devedor ao longo do contrato.</p>
-            <div class="chart-wrap"><canvas id="paymentChart"></canvas></div>
-          </section>
-          <section class="panel breakdown">
-            <h2 class="panel-title">Composição do pagamento</h2>
-            <p class="panel-subtitle">Quanto vai para principal, juros e entrada.</p>
-            <div class="donut-wrap"><canvas id="breakdownChart"></canvas></div>
-            <div class="legend">
-              <div class="legend-line"><span>Principal financiado</span><strong id="principalLegend">—</strong></div>
-              <div class="legend-line"><span>Juros</span><strong id="interestLegend">—</strong></div>
-              <div class="legend-line"><span>Balões</span><strong id="balloonLegend">—</strong></div>
-            </div>
-          </section>
-        </div>
-
-        <section class="panel table-card" id="tableCard" hidden>
-          <div class="table-head">
-            <div><h2 class="panel-title">Tabela de amortização</h2><p class="panel-subtitle tight">Detalhamento mês a mês.</p></div>
-            <div class="table-actions"><button id="exportCsv">Exportar CSV</button></div>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Mês</th><th>Parcela</th><th>Juros</th><th>Amortização</th><th>Balão</th><th>Saldo</th></tr></thead>
-              <tbody id="scheduleBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </section>
-  </main>
-
-  <script src="math.js"></script>
-  <script src="main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculadora PRICE Avançada</title>
+    <meta name="description" content="Simule financiamentos pela Tabela Price, com parcelas crescentes e balões personalizados." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
