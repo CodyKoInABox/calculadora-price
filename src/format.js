@@ -46,3 +46,27 @@ export function exportCompareCsv(priceSchedule, sacSchedule) {
     })
   ], 'comparacao-price-sac.csv')
 }
+
+export function exportAbCompareCsv(aSchedule, bSchedule) {
+  if (!aSchedule?.length || !bSchedule?.length) return
+  const len = Math.max(aSchedule.length, bSchedule.length)
+  downloadCsv([
+    [
+      'Mês',
+      'Parcela A', 'Juros A', 'Amortização A', 'Balão A', 'Saldo A',
+      'Parcela B', 'Juros B', 'Amortização B', 'Balão B', 'Saldo B',
+      'Δ Parcela'
+    ],
+    ...Array.from({ length: len }, (_, i) => {
+      const a = aSchedule[i]
+      const b = bSchedule[i]
+      const month = (a ?? b).month
+      return [
+        month,
+        a?.payment ?? '', a?.interest ?? '', a?.amortization ?? '', a?.balloon ?? '', a?.balance ?? '',
+        b?.payment ?? '', b?.interest ?? '', b?.amortization ?? '', b?.balloon ?? '', b?.balance ?? '',
+        a && b ? b.payment - a.payment : ''
+      ]
+    })
+  ], 'comparacao-a-b.csv')
+}
