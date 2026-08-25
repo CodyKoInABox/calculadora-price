@@ -5,6 +5,7 @@ import {
   annualToMonthly,
   monthlyToAnnual,
   clampCurveValue,
+  curveWeightAt,
   curvePresets,
   extrasToMap,
   simulateFinancing,
@@ -47,6 +48,50 @@ function runSim(partial) {
     mode: 'price',
     ...partial
   })
+}
+
+function assertCentLedger(result) {
+  expect(result.error).toBeUndefined()
+
+  let previousBalance = Math.round(result.principal * 100)
+  let interestTotal = 0
+  let regularTotal = 0
+  let balloonTotal = 0
+  let amortizationTotal = 0
+
+  result.schedule.forEach((row, index) => {
+    expect(row.month).toBe(index + 1)
+
+    const cents = {}
+    for (const key of ['payment', 'interest', 'amortization', 'balloon', 'balance']) {
+      expect(Number.isFinite(row[key])).toBe(true)
+      cents[key] = Math.round(row[key] * 100)
+      expect(row[key]).toBe(cents[key] / 100)
+    }
+
+    expect(previousBalance + cents.interest).toBe(
+      cents.payment + cents.balloon + cents.balance
+    )
+    expect(cents.amortization).toBe(
+      cents.payment + cents.balloon - cents.interest
+    )
+    expect(cents.balance).toBeGreaterThanOrEqual(0)
+
+    previousBalance = cents.balance
+    interestTotal += cents.interest
+    regularTotal += cents.payment
+    balloonTotal += cents.balloon
+    amortizationTotal += cents.amortization
+  })
+
+  expect(previousBalance).toBe(0)
+  expect(amortizationTotal).toBe(Math.round(result.principal * 100))
+  expect(result.totalInterest).toBe(interestTotal / 100)
+  expect(result.totalRegular).toBe(regularTotal / 100)
+  expect(result.totalBalloon).toBe(balloonTotal / 100)
+  expect(regularTotal + balloonTotal).toBe(
+    Math.round(result.principal * 100) + interestTotal
+  )
 }
 
 describe('annualToMonthly / monthlyToAnnual', () => {
@@ -151,8 +196,8 @@ describe('simulateFinancing — Price tradicional', () => {
     let interestSum = 0
 
     for (const row of r.schedule) {
-      const expectedInterest = balance * 0.012
-      expect(row.interest).toBeCloseTo(expectedInterest, 6)
+      const expectedInterest = Math.round(balance * 0.012 * 100) / 100
+      expect(row.interest).toBe(expectedInterest)
       interestSum += row.interest
       balance = Math.max(0, balance + row.interest - row.payment - row.balloon)
       expect(row.balance).toBeCloseTo(balance, 6)
@@ -257,7 +302,7 @@ describe('extrasToMap', () => {
 describe('simulateFinancing — extraEffect payment vs term', () => {
   const monthlyExtras = extrasToMap(true, [{ recurrence: 'monthly', month: 1, amount: '500,00' }], 36)
 
-  it('Price payment keeps contracted term and lowers installment', () => {
+  it('Price payment recalculates only after the extra occurs', () => {
     const baseline = runSim({ property: 300_000, down: 60_000, months: 36, rate: 0.01 })
     const withExtras = runSim({
       property: 300_000,
@@ -270,7 +315,8 @@ describe('simulateFinancing — extraEffect payment vs term', () => {
 
     expect(withExtras.schedule).toHaveLength(36)
     expect(withExtras.effectiveMonths).toBe(36)
-    expect(withExtras.schedule[0].payment).toBeLessThan(baseline.schedule[0].payment)
+    expect(withExtras.schedule[0].payment).toBe(baseline.schedule[0].payment)
+    expect(withExtras.schedule[1].payment).toBeLessThan(baseline.schedule[1].payment)
     expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
   })
 
@@ -292,7 +338,7 @@ describe('simulateFinancing — extraEffect payment vs term', () => {
     expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
   })
 
-  it('SAC payment keeps contracted term with lower amort', () => {
+  it('SAC payment recalculates amortization only after the extra occurs', () => {
     const baseline = runSim({ property: 300_000, down: 60_000, months: 36, rate: 0.01, mode: 'sac' })
     const withExtras = runSim({
       property: 300_000,
@@ -305,7 +351,10 @@ describe('simulateFinancing — extraEffect payment vs term', () => {
     })
 
     expect(withExtras.schedule).toHaveLength(36)
-    expect(withExtras.schedule[0].payment).toBeLessThan(baseline.schedule[0].payment)
+    expect(withExtras.schedule[0].payment).toBe(baseline.schedule[0].payment)
+    expect(
+      withExtras.schedule[1].payment - withExtras.schedule[1].interest
+    ).toBeLessThan(baseline.schedule[1].amortization)
     expect(withExtras.schedule.at(-1).balance).toBeCloseTo(0, 2)
   })
 
@@ -347,13 +396,13 @@ describe('simulateFinancing — SAC', () => {
     const r = runSim({ property: principal, down: 0, months, rate, mode: 'sac' })
 
     expect(r.error).toBeUndefined()
-    expect(r.schedule[0].payment).toBeCloseTo(amort + principal * rate, 6)
-    expect(r.schedule[0].amortization).toBeCloseTo(amort, 6)
+    expect(r.schedule[0].payment).toBe(9_333.33)
+    expect(r.schedule[0].amortization).toBe(8_333.33)
 
     for (let i = 1; i < r.schedule.length; i++) {
       expect(r.schedule[i].payment).toBeLessThan(r.schedule[i - 1].payment)
       if (i < months - 1) {
-        expect(r.schedule[i].amortization).toBeCloseTo(amort, 4)
+        expect(r.schedule[i].amortization).toBe(8_333.33)
       }
     }
 
@@ -459,8 +508,16 @@ describe('solveFromMaxPayment', () => {
     })
 
     expect(inv.error).toBeUndefined()
-    expect(inv.principal).toBeCloseTo(forward.principal, 0)
-    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.02)
+    expect(inv.principal).toBeGreaterThanOrEqual(forward.principal)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target)
+    const oneCentMore = runSim({
+      property: inv.down + inv.principal + 0.01,
+      down: inv.down,
+      months: 36,
+      rate: 0.01,
+      mode: 'price'
+    })
+    expect(maxRegularPayment(oneCentMore.schedule)).toBeGreaterThan(target)
   })
 
   it('round-trips Price down from max payment', () => {
@@ -484,7 +541,7 @@ describe('solveFromMaxPayment', () => {
     expect(inv.error).toBeUndefined()
     expect(inv.down).toBeCloseTo(forward.down, 0)
     expect(inv.principal).toBeCloseTo(forward.principal, 0)
-    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.02)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target)
   })
 
   it('keeps SAC max payment ≤ target', () => {
@@ -506,8 +563,8 @@ describe('solveFromMaxPayment', () => {
     })
 
     expect(inv.error).toBeUndefined()
-    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
-    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target)
+    expect(inv.principal).toBeGreaterThanOrEqual(forward.principal)
   })
 
   it('keeps growing max payment ≤ target', () => {
@@ -531,8 +588,17 @@ describe('solveFromMaxPayment', () => {
     })
 
     expect(inv.error).toBeUndefined()
-    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
-    expect(inv.principal).toBeCloseTo(forward.principal, 0)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target)
+    expect(inv.principal).toBeGreaterThanOrEqual(forward.principal)
+    const oneCentMore = runSim({
+      property: inv.down + inv.principal + 0.01,
+      down: inv.down,
+      months: 36,
+      rate: 0.01,
+      mode: 'growing',
+      curveControls: [...curvePresets.linear]
+    })
+    expect(maxRegularPayment(oneCentMore.schedule)).toBeGreaterThan(target)
   })
 
   it('converges with extras in payment effect', () => {
@@ -560,7 +626,7 @@ describe('solveFromMaxPayment', () => {
 
     expect(inv.error).toBeUndefined()
     expect(inv.down).toBeCloseTo(forward.down, 0)
-    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target + 0.05)
+    expect(maxRegularPayment(inv.schedule)).toBeLessThanOrEqual(target)
   })
 
   it('rejects non-positive target payment', () => {
@@ -574,4 +640,379 @@ describe('solveFromMaxPayment', () => {
     })
     expect(inv.error).toBeTruthy()
   })
+})
+
+describe('validated cent ledger contract', () => {
+  it('uses a stable formula at zero and near-zero rates', () => {
+    expect(pricePayment(120_000, 0, 12)).toBe(10_000)
+    expect(pricePayment(120_000, 1e-12, 12)).toBeCloseTo(10_000, 5)
+    expect(Number.isFinite(pricePayment(120_000, 1e-12, 600))).toBe(true)
+  })
+
+  it('rejects invalid term, rate, curve and extra map values', () => {
+    expect(runSim({ property: 100_000, down: 0, months: 12.5, rate: 0.01 }).error).toBeTruthy()
+    expect(runSim({ property: 100_000, down: 0, months: 601, rate: 0.01 }).error).toBeTruthy()
+    expect(runSim({ property: 100_000, down: 0, months: 12, rate: Infinity }).error).toBeTruthy()
+    expect(runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      curveControls: [1, 1, 1, 1, 1]
+    }).error).toBeTruthy()
+    expect(runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      balloons: new Map([[13, 500]])
+    }).error).toBeTruthy()
+  })
+
+  it('rejects non-finite, negative and out-of-range numeric inputs', () => {
+    expect(runSim({ property: Number.NaN, down: 0, months: 12, rate: 0.01 }).error).toBeTruthy()
+    expect(runSim({ property: 100_000, down: Infinity, months: 12, rate: 0.01 }).error).toBeTruthy()
+    expect(runSim({ property: 100_000, down: -0.01, months: 12, rate: 0.01 }).error).toBeTruthy()
+    expect(runSim({ property: 100_000, down: 0, months: 12, rate: -0.01 }).error).toBeTruthy()
+    expect(runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      curveControls: [CURVE_MIN - 0.01, 1, 1, 1, 1, 1]
+    }).error).toBeTruthy()
+    expect(runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      balloons: new Map([[1, Infinity]])
+    }).error).toBeTruthy()
+    expect(runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      balloons: new Map([[1.5, 100]])
+    }).error).toBeTruthy()
+  })
+
+  it('rejects fractional and out-of-horizon extra recurrence data', () => {
+    expect(extrasToMap(true, [{ month: 1.5, amount: 100 }], 12).error).toBeTruthy()
+    expect(extrasToMap(true, [{ month: 13, amount: 100 }], 12).error).toBeTruthy()
+    expect(extrasToMap(
+      true,
+      [{ recurrence: 'every', month: 1, everyN: 2.5, amount: 100 }],
+      12
+    ).error).toBeTruthy()
+    expect(extrasToMap(true, [{ month: 1, amount: Infinity }], 12).error).toBeTruthy()
+    expect(extrasToMap(true, [{ month: 1, amount: -0.01 }], 12).error).toBeTruthy()
+  })
+
+  it('keeps every monetary row on cents and closes the accounting identity', () => {
+    const result = runSim({
+      property: 300_000.009,
+      down: 60_000.004,
+      months: 36,
+      rate: 0.0117,
+      balloons: new Map([[7, 12_345.678], [18, 8_000.001]])
+    })
+
+    expect(result.error).toBeUndefined()
+    let previousBalance = Math.round(result.principal * 100)
+    let interestTotal = 0
+    let regularTotal = 0
+    let balloonTotal = 0
+
+    for (const row of result.schedule) {
+      const payment = Math.round(row.payment * 100)
+      const interest = Math.round(row.interest * 100)
+      const amortization = Math.round(row.amortization * 100)
+      const balloon = Math.round(row.balloon * 100)
+      const balance = Math.round(row.balance * 100)
+
+      expect(row.payment).toBe(payment / 100)
+      expect(row.interest).toBe(interest / 100)
+      expect(row.amortization).toBe(amortization / 100)
+      expect(row.balloon).toBe(balloon / 100)
+      expect(row.balance).toBe(balance / 100)
+      expect(previousBalance + interest).toBe(payment + balloon + balance)
+      expect(amortization).toBe(payment + balloon - interest)
+
+      previousBalance = balance
+      interestTotal += interest
+      regularTotal += payment
+      balloonTotal += balloon
+    }
+
+    expect(previousBalance).toBe(0)
+    expect(result.totalInterest).toBe(interestTotal / 100)
+    expect(result.totalRegular).toBe(regularTotal / 100)
+    expect(result.totalBalloon).toBe(balloonTotal / 100)
+  })
+})
+
+describe('bounded curve and post-extra recasting', () => {
+  it('never overshoots adjacent curve controls', () => {
+    const controls = [0.25, 0.25, 0.25, 2.5, 2.5, 2.5]
+    for (let index = 0; index < 5; index++) {
+      const low = Math.min(controls[index], controls[index + 1])
+      const high = Math.max(controls[index], controls[index + 1])
+      for (let step = 0; step <= 20; step++) {
+        const progress = (index + step / 20) / 5
+        const weight = curveWeightAt(progress, controls)
+        expect(weight).toBeGreaterThanOrEqual(low)
+        expect(weight).toBeLessThanOrEqual(high)
+        expect(weight).toBeGreaterThanOrEqual(CURVE_MIN)
+        expect(weight).toBeLessThanOrEqual(CURVE_MAX)
+      }
+    }
+  })
+
+  it('floors the custom curve at monthly interest and exposes the adjustment', () => {
+    const result = runSim({
+      property: 300_000,
+      down: 60_000,
+      months: 36,
+      rate: 0.01,
+      mode: 'growing',
+      curveControls: [0.25, 0.25, 0.25, 2.5, 2.5, 2.5]
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.curveFloorApplied).toBe(true)
+    expect(result.schedule.some(row => row.interestFloorApplied)).toBe(true)
+    expect(result.schedule.every(row => row.payment >= row.interest)).toBe(true)
+    expect(result.schedule.reduce((sum, row) => sum + row.amortization, 0)).toBe(result.principal)
+    expect(result.schedule.at(-1).balance).toBe(0)
+  })
+
+  it.each(['price', 'sac', 'growing'])(
+    '%s keeps its original contract through the extra month and recasts afterward',
+    mode => {
+      const shared = {
+        property: 300_000,
+        down: 60_000,
+        months: 36,
+        rate: 0.01,
+        mode
+      }
+      const baseline = runSim(shared)
+      const withExtra = runSim({
+        ...shared,
+        balloons: new Map([[6, 20_000]]),
+        extraEffect: 'payment'
+      })
+
+      expect(withExtra.error).toBeUndefined()
+      for (let month = 0; month < 6; month++) {
+        expect(withExtra.schedule[month].payment).toBe(baseline.schedule[month].payment)
+      }
+      expect(withExtra.schedule[6].payment).toBeLessThan(baseline.schedule[6].payment)
+      expect(withExtra.schedule.at(-1).balance).toBe(0)
+    }
+  )
+
+  it('removes zero months after an extra liquidates the balance', () => {
+    const result = runSim({
+      property: 100_000,
+      down: 0,
+      months: 36,
+      rate: 0.01,
+      balloons: new Map([[1, 1_000_000]]),
+      extraEffect: 'payment'
+    })
+
+    expect(result.schedule).toHaveLength(1)
+    expect(result.effectiveMonths).toBe(1)
+    expect(result.schedule[0].balance).toBe(0)
+  })
+})
+
+describe('exact cent regressions', () => {
+  it('matches the golden PRICE ledger for 100k at 1% over 12 months', () => {
+    const result = runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      mode: 'price'
+    })
+
+    expect(result.schedule[0]).toEqual({
+      month: 1,
+      payment: 8_884.88,
+      interest: 1_000,
+      amortization: 7_884.88,
+      balloon: 0,
+      balance: 92_115.12
+    })
+    expect(result.schedule[1]).toEqual({
+      month: 2,
+      payment: 8_884.88,
+      interest: 921.15,
+      amortization: 7_963.73,
+      balloon: 0,
+      balance: 84_151.39
+    })
+    expect(result.schedule.at(-1)).toEqual({
+      month: 12,
+      payment: 8_884.85,
+      interest: 87.97,
+      amortization: 8_796.88,
+      balloon: 0,
+      balance: 0
+    })
+    expect(result.totalInterest).toBe(6_618.53)
+    expect(result.totalRegular).toBe(106_618.53)
+    assertCentLedger(result)
+  })
+
+  it('matches the golden SAC ledger for 100k at 1% over 12 months', () => {
+    const result = runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      mode: 'sac'
+    })
+
+    expect(result.schedule[0]).toEqual({
+      month: 1,
+      payment: 9_333.33,
+      interest: 1_000,
+      amortization: 8_333.33,
+      balloon: 0,
+      balance: 91_666.67
+    })
+    expect(result.schedule[1]).toEqual({
+      month: 2,
+      payment: 9_250,
+      interest: 916.67,
+      amortization: 8_333.33,
+      balloon: 0,
+      balance: 83_333.34
+    })
+    expect(result.schedule.at(-1)).toEqual({
+      month: 12,
+      payment: 8_416.7,
+      interest: 83.33,
+      amortization: 8_333.37,
+      balloon: 0,
+      balance: 0
+    })
+    expect(result.totalInterest).toBe(6_500)
+    expect(result.totalRegular).toBe(106_500)
+    assertCentLedger(result)
+  })
+
+  it('keeps zero and near-zero rates on the same exact cent ledger', () => {
+    const zero = runSim({
+      property: 120_000,
+      down: 0,
+      months: 12,
+      rate: 0,
+      mode: 'price'
+    })
+    const nearZero = runSim({
+      property: 120_000,
+      down: 0,
+      months: 12,
+      rate: 1e-12,
+      mode: 'price'
+    })
+
+    expect(nearZero.schedule).toEqual(zero.schedule)
+    expect(nearZero.totalInterest).toBe(0)
+    assertCentLedger(nearZero)
+  })
+
+  it('matches the post-extra PRICE recast ledger exactly', () => {
+    const result = runSim({
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      mode: 'price',
+      balloons: new Map([[6, 10_000]]),
+      extraEffect: 'payment'
+    })
+
+    expect(result.schedule[5]).toEqual({
+      month: 6,
+      payment: 8_884.88,
+      interest: 597.79,
+      amortization: 18_287.09,
+      balloon: 10_000,
+      balance: 41_492.09
+    })
+    expect(result.schedule[6].payment).toBe(7_159.39)
+    expect(result.schedule.at(-1).payment).toBe(7_159.42)
+    expect(result.totalInterest).toBe(6_265.65)
+    expect(result.totalRegular).toBe(96_265.65)
+    expect(result.totalBalloon).toBe(10_000)
+    assertCentLedger(result)
+  })
+
+  it('finds the exact maximum PRICE principal in cents', () => {
+    const inverse = solveFromMaxPayment({
+      targetPayment: 8_884.88,
+      solveFor: 'principal',
+      property: 100_000,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      mode: 'price',
+      balloons: new Map(),
+      curveControls: [...curvePresets.linear]
+    })
+
+    expect(inverse.principal).toBe(100_000.02)
+    expect(inverse.maxPayment).toBe(8_884.88)
+    assertCentLedger(inverse)
+
+    const oneCentMore = runSim({
+      property: 100_000.03,
+      down: 0,
+      months: 12,
+      rate: 0.01,
+      mode: 'price'
+    })
+    expect(maxRegularPayment(oneCentMore.schedule)).toBeGreaterThan(8_884.88)
+  })
+})
+
+describe('deterministic invariant matrix', () => {
+  const cases = ['price', 'sac', 'growing'].flatMap(mode =>
+    [0, 1e-12, 0.0117].flatMap(rate =>
+      ['payment', 'term'].map(extraEffect => ({
+        mode,
+        rate,
+        extraEffect
+      }))
+    )
+  )
+
+  it.each(cases)(
+    '$mode at $rate with extraEffect=$extraEffect closes the cent ledger',
+    ({ mode, rate, extraEffect }) => {
+      const result = runSim({
+        property: 300_000.009,
+        down: 60_000.004,
+        months: 36,
+        rate,
+        mode,
+        extraEffect,
+        balloons: new Map([[7, 12_345.678], [18, 8_000.001]]),
+        curveControls: mode === 'growing'
+          ? [0.25, 0.25, 0.25, 2.5, 2.5, 2.5]
+          : [...curvePresets.linear]
+      })
+
+      assertCentLedger(result)
+      if (mode === 'growing') {
+        expect(result.schedule.every(row => row.payment >= row.interest)).toBe(true)
+      }
+    }
+  )
 })
