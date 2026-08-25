@@ -1,5 +1,5 @@
 import { curvePresets, parseMoney } from './math'
-import { number } from './format'
+import { currentYearMonth, number, parseYearMonthInput, yearMonthInputValue } from './format'
 
 const MODES = new Set(['price', 'growing', 'compare', 'ab'])
 const RATE_PERIODS = new Set(['am', 'aa'])
@@ -121,6 +121,16 @@ function encodeScenario(prefix, scenario, params) {
   }
 }
 
+function encodeStartMonth(state, params) {
+  const ym = state.startMonth
+  if (!ym) return
+  const parsed = parseYearMonthInput(yearMonthInputValue(ym))
+  if (!parsed) return
+  const now = currentYearMonth()
+  if (parsed.year === now.year && parsed.month === now.month) return
+  params.set('sm', yearMonthInputValue(parsed))
+}
+
 function decodeScenario(prefix, params, fallback) {
   const base = { ...fallback }
   const dp = parseNum(params.get(`${prefix}dp`))
@@ -164,6 +174,7 @@ export function encodeState(state) {
   if (mode === 'ab') {
     encodeScenario('a', state.scenarioA || {}, params)
     encodeScenario('b', state.scenarioB || {}, params)
+    encodeStartMonth(state, params)
     return params
   }
 
@@ -206,6 +217,7 @@ export function encodeState(state) {
     }
   }
 
+  encodeStartMonth(state, params)
   return params
 }
 
@@ -232,6 +244,12 @@ export function decodeState(search) {
   const pv = parseNum(params.get('pv'))
   if (pv != null && pv >= 0) {
     out.propertyValue = formatMoney(pv)
+    touched = true
+  }
+
+  const sm = parseYearMonthInput(params.get('sm'))
+  if (sm) {
+    out.startMonth = sm
     touched = true
   }
 

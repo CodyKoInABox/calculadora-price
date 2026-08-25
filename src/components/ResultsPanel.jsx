@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
-import { brl } from '../format'
+import { brl, formatInstallmentMonth, monthCashOut } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
+import StartMonthPicker from './StartMonthPicker.jsx'
 
-export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
+export default function ResultsPanel({ result, mode, startMonth, onStartMonthChange, onExport, onExportPdf }) {
   const paymentRef = useRef(null)
   const breakdownRef = useRef(null)
   const paymentChartRef = useRef(null)
@@ -217,6 +218,7 @@ export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
             <p className="panel-subtitle tight">Detalhamento mês a mês.</p>
           </div>
           <div className="table-actions">
+            <StartMonthPicker value={startMonth} onChange={onStartMonthChange} />
             <button type="button" onClick={onExport}>Exportar CSV</button>
             {onExportPdf && <button type="button" onClick={onExportPdf}>Exportar PDF</button>}
           </div>
@@ -230,6 +232,7 @@ export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
                 <th>Juros</th>
                 <th>Amortização</th>
                 <th>Balão</th>
+                <th>Total no mês</th>
                 <th>Saldo</th>
               </tr>
             </thead>
@@ -239,11 +242,13 @@ export default function ResultsPanel({ result, mode, onExport, onExportPdf }) {
                   <td>
                     {row.month}
                     {row.balloon > 0 && <span className="badge-balloon">BALÃO</span>}
+                    <span className="month-cal">{formatInstallmentMonth(startMonth, row.month)}</span>
                   </td>
                   <td>{brl.format(row.payment)}</td>
                   <td>{brl.format(row.interest)}</td>
                   <td>{brl.format(row.amortization)}</td>
                   <td>{brl.format(row.balloon)}</td>
+                  <td className="month-total">{brl.format(monthCashOut(row))}</td>
                   <td>{brl.format(row.balance)}</td>
                 </tr>
               ))}
