@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
-import { clampCurveValue, CURVE_MIN, CURVE_MAX } from '../math'
+import { clampCurveValue, curveWeightAt, CURVE_MIN, CURVE_MAX } from '../math'
+
+const CURVE_SAMPLE_COUNT = 100
+
+function curveSeries(controls) {
+  return Array.from({ length: CURVE_SAMPLE_COUNT + 1 }, (_, index) => {
+    const progress = index / CURVE_SAMPLE_COUNT
+    return { x: progress, y: curveWeightAt(progress, controls) }
+  })
+}
+
+function controlSeries(controls) {
+  return controls.map((value, index) => ({
+    x: index / (controls.length - 1),
+    y: value
+  }))
+}
 
 export default function CurveEditor({ controls, activePreset, onChange, onPreset }) {
   const canvasRef = useRef(null)
@@ -22,21 +38,34 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
     const chart = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: ['Início', '20%', '40%', '60%', '80%', 'Fim'],
-        datasets: [{
-          data: [...controlsRef.current],
-          borderColor: '#524fa0',
-          backgroundColor: 'rgba(82,79,160,.12)',
-          borderWidth: 3,
-          fill: true,
-          tension: .34,
-          pointRadius: 6,
-          pointHoverRadius: 8,
-          pointHitRadius: 18,
-          pointBackgroundColor: ctx => ctx.dataIndex === activePointRef.current ? '#151728' : '#ffffff',
-          pointBorderColor: '#524fa0',
-          pointBorderWidth: 3
-        }]
+        datasets: [
+          {
+            id: 'curve',
+            label: 'Curva calculada',
+            data: curveSeries(controlsRef.current),
+            parsing: false,
+            borderColor: '#524fa0',
+            backgroundColor: 'rgba(82,79,160,.12)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0,
+            pointRadius: 0
+          },
+          {
+            id: 'controls',
+            label: 'Ponto de controle',
+            data: controlSeries(controlsRef.current),
+            parsing: false,
+            borderColor: '#524fa0',
+            showLine: false,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointHitRadius: 18,
+            pointBackgroundColor: ctx => ctx.dataIndex === activePointRef.current ? '#151728' : '#ffffff',
+            pointBorderColor: '#524fa0',
+            pointBorderWidth: 3
+          }
+        ]
       },
       options: {
         responsive: true,
@@ -46,10 +75,14 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
         layout: { padding: { top: 15, right: 14, bottom: 8, left: 4 } },
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `Peso relativo: ${Number(ctx.raw).toFixed(2)}×` } }
+          tooltip: {
+            callbacks: {
+              label: ctx => `Peso relativo: ${Number(ctx.parsed.y).toFixed(2)}×`
+            }
+          }
         },
         scales: {
-          x: { display: false },
+          x: { type: 'linear', display: false, min: 0, max: 1 },
           y: {
             min: CURVE_MIN,
             max: CURVE_MAX,
@@ -62,21 +95,35 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
     })
     chartRef.current = chart
 
+    const updateData = next => {
+      chart.data.datasets[0].data = curveSeries(next)
+      chart.data.datasets[1].data = controlSeries(next)
+    }
+
     const setFromPointer = event => {
       const value = chart.scales.y.getValueForPixel(event.offsetY)
       const next = [...controlsRef.current]
       next[activePointRef.current] = clampCurveValue(value, 0.05)
-      chart.data.datasets[0].data = next
+      updateData(next)
       chart.update('none')
       onChange(next, null)
     }
 
     const onPointerDown = event => {
-      const point = chart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, false)[0]
-      if (!point) return
+      const points = chart.getDatasetMeta(1).data
+      if (!points.length) return
+      let pointIndex = 0
+      let nearestDistance = Number.POSITIVE_INFINITY
+      points.forEach((point, index) => {
+        const distance = Math.hypot(point.x - event.offsetX, point.y - event.offsetY)
+        if (distance < nearestDistance) {
+          pointIndex = index
+          nearestDistance = distance
+        }
+      })
       event.preventDefault()
-      setActivePoint(point.index)
-      activePointRef.current = point.index
+      setActivePoint(pointIndex)
+      activePointRef.current = pointIndex
       draggingRef.current = true
       setDragging(true)
       canvas.setPointerCapture(event.pointerId)
@@ -110,7 +157,7 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
         const direction = event.key === 'ArrowUp' ? 1 : -1
         const next = [...controlsRef.current]
         next[activePointRef.current] = clampCurveValue(next[activePointRef.current] + direction * .05, 0)
-        chart.data.datasets[0].data = next
+        updateData(next)
         chart.update('none')
         onChange(next, null)
       }
@@ -136,7 +183,8 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
   useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
-    chart.data.datasets[0].data = [...controls]
+    chart.data.datasets[0].data = curveSeries(controls)
+    chart.data.datasets[1].data = controlSeries(controls)
     chart.update('none')
   }, [controls, activePoint])
 
@@ -152,7 +200,7 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
       <div className="curve-builder-head">
         <div>
           <strong>Desenhe a evolução das parcelas</strong>
-          <span>Arraste os pontos para alterar a inclinação.</span>
+          <span>Arraste os pontos. A linha usa a mesma interpolação limitada do cálculo.</span>
         </div>
         <div className="curve-live">● RECÁLCULO AO VIVO</div>
       </div>

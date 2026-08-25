@@ -58,7 +58,10 @@ function defaultScenarioB() {
 
 /** Percent + period → monthly decimal for the engine. */
 function toMonthlyRate(interestPct, period) {
-  const i = Math.max(0, Number(interestPct) || 0) / 100
+  if (interestPct === '' || interestPct == null) return Number.NaN
+  const parsed = Number(interestPct)
+  if (!Number.isFinite(parsed) || parsed < 0) return Number.NaN
+  const i = parsed / 100
   return period === 'aa' ? annualToMonthly(i) : i
 }
 
@@ -73,15 +76,32 @@ function formatRatePctLabel(decimal) {
   return String(formatRatePct(decimal)).replace('.', ',')
 }
 
+function prepareScheduleInputs(enabled, extras, monthsValue) {
+  const months = Number(monthsValue)
+  if (!Number.isInteger(months) || months < 1 || months > 600) {
+    return { error: 'O prazo deve ser um número inteiro entre 1 e 600 meses.' }
+  }
+
+  const balloons = extrasToMap(enabled, extras, months)
+  if (balloons?.error) return { error: balloons.error }
+  return { months, balloons }
+}
+
 function runScenario(property, scenario) {
-  const months = Math.max(1, Number(scenario.months) || 1)
+  const prepared = prepareScheduleInputs(
+    scenario.balloonEnabled,
+    scenario.balloons,
+    scenario.months
+  )
+  if (prepared.error) return prepared
+
   return simulateFinancing({
     property,
     down: parseMoney(scenario.downPayment),
-    months,
+    months: prepared.months,
     rate: toMonthlyRate(scenario.interest, scenario.ratePeriod || 'am'),
     mode: 'price',
-    balloons: extrasToMap(scenario.balloonEnabled, scenario.balloons, months),
+    balloons: prepared.balloons,
     extraEffect: scenario.extraEffect || 'payment',
     curveControls: [...curvePresets.linear]
   })
@@ -150,7 +170,7 @@ function ExtrasEditor({
       <div className="switch-line">
         <div className="switch-copy">
           <strong>Pagamentos extras</strong>
-          <span>Balões pontuais ou amortização recorrente</span>
+          <span>Pagamentos pontuais ou amortização recorrente</span>
         </div>
         <label className="switch">
           <input type="checkbox" checked={enabled} onChange={e => onToggle(e.target.checked)} />
@@ -302,7 +322,6 @@ export default function App() {
     const nextBalloons = overrides.balloons ?? balloons
     const nextEnabled = overrides.balloonEnabled ?? balloonEnabled
     const nextEffect = overrides.extraEffect ?? extraEffect
-    const nextMonths = Math.max(1, Number(overrides.months ?? months) || 1)
     const nextDirection = overrides.direction ?? direction
     const nextSolveFor = overrides.solveFor ?? solveFor
     const property = parseMoney(overrides.propertyValue ?? propertyValue)
@@ -310,10 +329,16 @@ export default function App() {
     const targetPayment = parseMoney(overrides.maxPayment ?? maxPayment)
     const nextRatePeriod = overrides.ratePeriod ?? ratePeriod
     const rate = toMonthlyRate(overrides.interest ?? interest, nextRatePeriod)
-    const balloonMap = extrasToMap(nextEnabled, nextBalloons, nextMonths)
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
     const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
+
+    const reportError = message => {
+      if (nextMode === 'ab') setAbResult(null)
+      else if (nextMode === 'compare') setCompareResult(null)
+      else setResult(null)
+      alert(message)
+    }
 
     const syncSolvedFields = out => {
       if (!out || out.error || !out.solved) return
@@ -328,7 +353,7 @@ export default function App() {
       const outA = runScenario(property, nextA)
       const outB = runScenario(property, nextB)
       if (outA.error || outB.error) {
-        alert(outA.error || outB.error)
+        reportError(outA.error || outB.error)
         return
       }
       setAbResult({ a: outA, b: outB })
@@ -336,6 +361,18 @@ export default function App() {
       setCompareResult(null)
       return
     }
+
+    const prepared = prepareScheduleInputs(
+      nextEnabled,
+      nextBalloons,
+      overrides.months ?? months
+    )
+    if (prepared.error) {
+      reportError(prepared.error)
+      return
+    }
+    const nextMonths = prepared.months
+    const balloonMap = prepared.balloons
 
     if (nextMode === 'compare') {
       const shared = {
@@ -362,7 +399,7 @@ export default function App() {
         sacOut = simulateFinancing({ ...shared, mode: 'sac' })
       }
       if (priceOut.error || sacOut.error) {
-        alert(priceOut.error || sacOut.error)
+        reportError(priceOut.error || sacOut.error)
         return
       }
       if (useInverse) syncSolvedFields(priceOut)
@@ -397,7 +434,7 @@ export default function App() {
         })
 
     if (out.error) {
-      alert(out.error)
+      reportError(out.error)
       return
     }
     if (useInverse) syncSolvedFields(out)
@@ -705,7 +742,7 @@ export default function App() {
 
           {showProperty && (
             <div className="field">
-              <label htmlFor={propertyId}>Valor a ser financiado</label>
+              <label htmlFor={propertyId}>Valor total do bem</label>
               <div className="input-wrap">
                 <span className="prefix">R$</span>
                 <input id={propertyId} className="has-prefix" value={propertyValue} onChange={moneyChange(setPropertyValue)} inputMode="decimal" />
@@ -833,7 +870,7 @@ export default function App() {
                   </div>
 
                   <div className="field">
-                    <label htmlFor={maxPaymentId}>Parcela máxima</label>
+                    <label htmlFor={maxPaymentId}>Parcela regular máxima</label>
                     <div className="input-wrap">
                       <span className="prefix">R$</span>
                       <input
@@ -844,6 +881,7 @@ export default function App() {
                         inputMode="decimal"
                       />
                     </div>
+                    <p className="footnote">Pagamentos extras não entram neste limite.</p>
                   </div>
                 </>
               )}
@@ -881,7 +919,7 @@ export default function App() {
 
               {showSolvedProperty && (
                 <div className="field">
-                  <label htmlFor={propertyId}>Valor total calculado{mode === 'compare' ? ' (Price)' : ''}</label>
+                  <label htmlFor={propertyId}>Valor total do bem calculado{mode === 'compare' ? ' (Price)' : ''}</label>
                   <div className="input-wrap">
                     <span className="prefix">R$</span>
                     <input
@@ -959,8 +997,8 @@ export default function App() {
             <strong>Calculadora PRICE</strong>
             <span>
               {mode === 'ab'
-                ? `Financiado ${propertyValue} · A vs B`
-                : `Financiado ${propertyValue} · Entrada ${downPayment} · ${months} meses`}
+                ? `Bem ${propertyValue} · A vs B`
+                : `Bem ${propertyValue} · Entrada ${downPayment} · ${months} meses`}
             </span>
           </div>
           {mode === 'ab' && (

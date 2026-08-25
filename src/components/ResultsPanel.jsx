@@ -22,14 +22,37 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
         labels: result.schedule.map(r => `M${r.month}`),
         datasets: [
           {
-            label: 'Parcela',
-            data: result.schedule.map(r => r.payment + r.balloon),
+            label: 'Parcela regular',
+            data: result.schedule.map(r => r.payment),
             borderColor: '#524fa0',
             backgroundColor: 'rgba(82,79,160,.10)',
             fill: true,
             tension: .32,
             pointRadius: 0,
             borderWidth: 2.5,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Pagamento extra',
+            data: result.schedule.map(r => r.balloon),
+            borderColor: '#c38320',
+            backgroundColor: 'rgba(195,131,32,.12)',
+            fill: false,
+            tension: 0,
+            pointRadius: 2,
+            borderWidth: 1.8,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Desembolso total',
+            data: result.schedule.map(monthCashOut),
+            borderColor: '#0f8a65',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: .32,
+            pointRadius: 0,
+            borderDash: [4, 4],
+            borderWidth: 2,
             yAxisID: 'y'
           },
           {
@@ -105,18 +128,19 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
       <section className="panel empty">
         <div className="empty-icon">↗</div>
         <h2 className="panel-title">Sua simulação aparecerá aqui</h2>
-        <p>Preencha os dados e clique em calcular para visualizar parcelas, juros, balões e evolução do saldo.</p>
+        <p>Preencha os dados e clique em calcular para visualizar parcelas, juros, extras e evolução do saldo.</p>
       </section>
     )
   }
 
   const totalPaid = result.down + result.totalRegular + result.totalBalloon
   const termReduced = result.extraEffect === 'term' && result.effectiveMonths < result.months
+  const floorMonths = result.schedule.filter(row => row.interestFloorApplied).length
   let inverseNote = null
   if (result.solved === 'principal') {
-    inverseNote = `Ajustado para parcela máx. ≤ ${brl.format(result.targetPayment)} (quanto financiar).`
+    inverseNote = `Ajustado para parcela regular máx. ≤ ${brl.format(result.targetPayment)} (quanto financiar).`
   } else if (result.solved === 'down') {
-    inverseNote = `Ajustado para parcela máx. ≤ ${brl.format(result.targetPayment)} (entrada mínima).`
+    inverseNote = `Ajustado para parcela regular máx. ≤ ${brl.format(result.targetPayment)} (entrada mínima).`
   }
 
   return (
@@ -136,7 +160,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
             <div className="metric">
               <span>Entrada mínima</span>
               <strong>{brl.format(result.down)}</strong>
-              <small>Para parcela ≤ {brl.format(result.targetPayment)}</small>
+              <small>Para parcela regular ≤ {brl.format(result.targetPayment)}</small>
             </div>
           )}
           {result.solved === 'principal' && (
@@ -152,14 +176,14 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
             <small>{result.solved === 'down' ? 'Valor − entrada mínima' : 'Após entrada'}</small>
           </div>
           <div className="metric">
-            <span>Primeira parcela</span>
+            <span>Primeira parcela regular</span>
             <strong>{brl.format(result.schedule[0]?.payment || 0)}</strong>
             <small>{mode === 'growing' ? 'Parcela inicial ajustada' : 'Parcela mensal Price'}</small>
           </div>
           <div className="metric">
-            <span>Última parcela</span>
+            <span>Última parcela regular</span>
             <strong>{brl.format(result.schedule[result.schedule.length - 1]?.payment || 0)}</strong>
-            <small>Sem considerar balão separado</small>
+            <small>Sem considerar pagamento extra</small>
           </div>
           <div className="metric">
             <span>{termReduced ? 'Prazo efetivo' : 'Total pago'}</span>
@@ -168,16 +192,26 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
                 ? `${result.months} → ${result.effectiveMonths} meses`
                 : brl.format(totalPaid)}
             </strong>
-            <small>{termReduced ? 'Contratado → liquidado' : 'Entrada + parcelas + balões'}</small>
+            <small>{termReduced ? 'Contratado → liquidado' : 'Entrada + parcelas regulares + extras'}</small>
           </div>
           {termReduced && (
             <div className="metric">
               <span>Total pago</span>
               <strong>{brl.format(totalPaid)}</strong>
-              <small>Entrada + parcelas + balões</small>
+              <small>Entrada + parcelas regulares + extras</small>
             </div>
           )}
         </div>
+        {result.curveFloorApplied && (
+          <div className="curve-warning" role="status">
+            <strong>Curva ajustada pelo piso de juros</strong>
+            <span>
+              {floorMonths === 1
+                ? 'Em 1 mês, a parcela regular foi elevada até o valor dos juros para impedir amortização negativa.'
+                : `Em ${floorMonths} meses, a parcela regular foi elevada até o valor dos juros para impedir amortização negativa.`}
+            </span>
+          </div>
+        )}
       </section>
 
       <div className="visual-grid">
@@ -190,8 +224,8 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
         >
           <div className="chart-card-head">
             <div>
-              <h2 id={paymentExpand.titleId} className="panel-title">Evolução das parcelas</h2>
-              <p className="panel-subtitle tight">Pagamento mensal e saldo devedor ao longo do contrato.</p>
+              <h2 id={paymentExpand.titleId} className="panel-title">Evolução dos desembolsos</h2>
+              <p className="panel-subtitle tight">Parcela regular, extra, total mensal e saldo devedor.</p>
             </div>
             <ChartExpandButton onClick={paymentExpand.toggle} expanded={paymentExpand.expanded} />
           </div>
@@ -201,12 +235,12 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
         </section>
         <section className="panel breakdown">
           <h2 className="panel-title">Composição do pagamento</h2>
-          <p className="panel-subtitle">Quanto vai para principal, juros e entrada.</p>
+          <p className="panel-subtitle">Composição do valor total pago.</p>
           <div className="donut-wrap"><canvas ref={breakdownRef} /></div>
           <div className="legend">
             <div className="legend-line"><span>Principal financiado</span><strong>{brl.format(result.principal)}</strong></div>
             <div className="legend-line"><span>Juros</span><strong>{brl.format(result.totalInterest)}</strong></div>
-            <div className="legend-line"><span>Balões</span><strong>{brl.format(result.totalBalloon)}</strong></div>
+            <div className="legend-line"><span>Entrada</span><strong>{brl.format(result.down)}</strong></div>
           </div>
         </section>
       </div>
@@ -228,20 +262,27 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
             <thead>
               <tr>
                 <th>Mês</th>
-                <th>Parcela</th>
+                <th>Parcela regular</th>
                 <th>Juros</th>
                 <th>Amortização</th>
-                <th>Balão</th>
-                <th>Total no mês</th>
+                <th>Extra</th>
+                <th>Desembolso total</th>
                 <th>Saldo</th>
               </tr>
             </thead>
             <tbody>
               {result.schedule.map(row => (
-                <tr key={row.month} className={row.balloon > 0 ? 'balloon-row' : undefined}>
+                <tr
+                  key={row.month}
+                  className={[
+                    row.balloon > 0 ? 'balloon-row' : '',
+                    row.interestFloorApplied ? 'interest-floor-row' : ''
+                  ].filter(Boolean).join(' ') || undefined}
+                >
                   <td>
                     {row.month}
-                    {row.balloon > 0 && <span className="badge-balloon">BALÃO</span>}
+                    {row.balloon > 0 && <span className="badge-balloon">EXTRA</span>}
+                    {row.interestFloorApplied && <span className="badge-floor">PISO DE JUROS</span>}
                     <span className="month-cal">{formatInstallmentMonth(startMonth, row.month)}</span>
                   </td>
                   <td>{brl.format(row.payment)}</td>
