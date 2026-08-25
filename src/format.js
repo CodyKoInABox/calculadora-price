@@ -51,6 +51,14 @@ export function monthCashOut(row) {
   return (row.payment || 0) + (row.balloon || 0)
 }
 
+function csvMoney(value) {
+  return Number(value).toFixed(2).replace('.', ',')
+}
+
+function scheduleMoney(row, key) {
+  return row ? csvMoney(row[key] || 0) : ''
+}
+
 export function formatMoneyInput(rawDigits) {
   const digits = String(rawDigits).replace(/\D/g, '')
   return number.format((Number(digits) || 0) / 100)
@@ -64,22 +72,23 @@ function downloadCsv(rows, filename) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(a.href)
+  return csv
 }
 
 export function exportScheduleCsv(schedule, startMonth) {
   if (!schedule?.length) return
   const start = startMonth ?? currentYearMonth()
-  downloadCsv([
-    ['Mês', 'Calendário', 'Parcela', 'Juros', 'Amortização', 'Balão', 'Total no mês', 'Saldo'],
+  return downloadCsv([
+    ['Mês', 'Calendário', 'Parcela regular', 'Juros', 'Amortização', 'Extra/Balão', 'Total no mês', 'Saldo'],
     ...schedule.map(r => [
       r.month,
       formatInstallmentMonth(start, r.month),
-      r.payment,
-      r.interest,
-      r.amortization,
-      r.balloon,
-      monthCashOut(r),
-      r.balance
+      csvMoney(r.payment),
+      csvMoney(r.interest),
+      csvMoney(r.amortization),
+      csvMoney(r.balloon),
+      csvMoney(monthCashOut(r)),
+      csvMoney(r.balance)
     ])
   ], 'simulacao-financiamento.csv')
 }
@@ -87,23 +96,27 @@ export function exportScheduleCsv(schedule, startMonth) {
 export function exportCompareCsv(priceSchedule, sacSchedule, startMonth) {
   if (!priceSchedule?.length || !sacSchedule?.length) return
   const start = startMonth ?? currentYearMonth()
-  const len = Math.min(priceSchedule.length, sacSchedule.length)
-  downloadCsv([
+  const len = Math.max(priceSchedule.length, sacSchedule.length)
+  return downloadCsv([
     [
       'Mês', 'Calendário',
-      'Parcela Price', 'Juros Price', 'Amortização Price', 'Balão Price', 'Total Price', 'Saldo Price',
-      'Parcela SAC', 'Juros SAC', 'Amortização SAC', 'Balão SAC', 'Total SAC', 'Saldo SAC',
-      'Δ Parcela'
+      'Parcela regular Price', 'Juros Price', 'Amortização Price', 'Extra/Balão Price', 'Total no mês Price', 'Saldo Price',
+      'Parcela regular SAC', 'Juros SAC', 'Amortização SAC', 'Extra/Balão SAC', 'Total no mês SAC', 'Saldo SAC',
+      'Δ Parcela regular', 'Δ Total no mês'
     ],
     ...Array.from({ length: len }, (_, i) => {
       const p = priceSchedule[i]
       const s = sacSchedule[i]
+      const month = (p ?? s).month
       return [
-        p.month,
-        formatInstallmentMonth(start, p.month),
-        p.payment, p.interest, p.amortization, p.balloon, monthCashOut(p), p.balance,
-        s.payment, s.interest, s.amortization, s.balloon, monthCashOut(s), s.balance,
-        s.payment - p.payment
+        month,
+        formatInstallmentMonth(start, month),
+        scheduleMoney(p, 'payment'), scheduleMoney(p, 'interest'), scheduleMoney(p, 'amortization'),
+        scheduleMoney(p, 'balloon'), p ? csvMoney(monthCashOut(p)) : '', scheduleMoney(p, 'balance'),
+        scheduleMoney(s, 'payment'), scheduleMoney(s, 'interest'), scheduleMoney(s, 'amortization'),
+        scheduleMoney(s, 'balloon'), s ? csvMoney(monthCashOut(s)) : '', scheduleMoney(s, 'balance'),
+        csvMoney((s?.payment || 0) - (p?.payment || 0)),
+        csvMoney((s ? monthCashOut(s) : 0) - (p ? monthCashOut(p) : 0))
       ]
     })
   ], 'comparacao-price-sac.csv')
@@ -113,12 +126,12 @@ export function exportAbCompareCsv(aSchedule, bSchedule, startMonth) {
   if (!aSchedule?.length || !bSchedule?.length) return
   const start = startMonth ?? currentYearMonth()
   const len = Math.max(aSchedule.length, bSchedule.length)
-  downloadCsv([
+  return downloadCsv([
     [
       'Mês', 'Calendário',
-      'Parcela A', 'Juros A', 'Amortização A', 'Balão A', 'Total A', 'Saldo A',
-      'Parcela B', 'Juros B', 'Amortização B', 'Balão B', 'Total B', 'Saldo B',
-      'Δ Parcela'
+      'Parcela regular A', 'Juros A', 'Amortização A', 'Extra/Balão A', 'Total no mês A', 'Saldo A',
+      'Parcela regular B', 'Juros B', 'Amortização B', 'Extra/Balão B', 'Total no mês B', 'Saldo B',
+      'Δ Parcela regular', 'Δ Total no mês'
     ],
     ...Array.from({ length: len }, (_, i) => {
       const a = aSchedule[i]
@@ -127,9 +140,12 @@ export function exportAbCompareCsv(aSchedule, bSchedule, startMonth) {
       return [
         month,
         formatInstallmentMonth(start, month),
-        a?.payment ?? '', a?.interest ?? '', a?.amortization ?? '', a?.balloon ?? '', a ? monthCashOut(a) : '', a?.balance ?? '',
-        b?.payment ?? '', b?.interest ?? '', b?.amortization ?? '', b?.balloon ?? '', b ? monthCashOut(b) : '', b?.balance ?? '',
-        a && b ? b.payment - a.payment : ''
+        scheduleMoney(a, 'payment'), scheduleMoney(a, 'interest'), scheduleMoney(a, 'amortization'),
+        scheduleMoney(a, 'balloon'), a ? csvMoney(monthCashOut(a)) : '', scheduleMoney(a, 'balance'),
+        scheduleMoney(b, 'payment'), scheduleMoney(b, 'interest'), scheduleMoney(b, 'amortization'),
+        scheduleMoney(b, 'balloon'), b ? csvMoney(monthCashOut(b)) : '', scheduleMoney(b, 'balance'),
+        csvMoney((b?.payment || 0) - (a?.payment || 0)),
+        csvMoney((b ? monthCashOut(b) : 0) - (a ? monthCashOut(a) : 0))
       ]
     })
   ], 'comparacao-a-b.csv')
