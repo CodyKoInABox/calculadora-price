@@ -1,4 +1,4 @@
-import { curvePresets, parseMoney } from './math'
+import { CURVE_MAX, CURVE_MIN, curvePresets, parseMoney } from './math'
 import { currentYearMonth, number, parseYearMonthInput, yearMonthInputValue } from './format'
 
 const MODES = new Set(['price', 'growing', 'compare', 'ab'])
@@ -8,6 +8,8 @@ const SOLVE_FOR = new Set(['principal', 'down'])
 const EXTRA_EFFECTS = new Set(['payment', 'term'])
 const RECURRENCES = new Set(['once', 'monthly', 'yearly', 'every'])
 const PRESETS = new Set(Object.keys(curvePresets))
+const MAX_MONTHS = 600
+const MAX_RECURRENCE_MONTHS = 120
 
 const DEFAULTS = {
   propertyValue: 300000,
@@ -43,30 +45,35 @@ function parseNum(raw) {
   return Number.isFinite(n) ? n : null
 }
 
-function parseIntClamped(raw, min, max) {
+function parseBoundedInt(raw, min, max) {
   const n = parseNum(raw)
-  if (n == null) return null
-  return Math.max(min, Math.min(max, Math.round(n)))
+  if (!Number.isInteger(n) || n < min || n > max) return null
+  return n
 }
 
 /** Encode balloon rows → `once:6:10000|every:12:6:5000` */
-export function encodeExtras(extras) {
+export function encodeExtras(extras, maxMonth = MAX_MONTHS) {
   if (!extras?.length) return ''
-  return extras.map(b => {
-    const rec = RECURRENCES.has(b.recurrence) ? b.recurrence : 'once'
-    const month = Math.max(1, Number(b.month) || 1)
+  const horizon = parseBoundedInt(maxMonth, 1, MAX_MONTHS) ?? MAX_MONTHS
+  return extras.flatMap(b => {
+    if (!b || typeof b !== 'object') return []
+    const rec = b.recurrence || 'once'
+    if (!RECURRENCES.has(rec)) return []
+    const month = parseBoundedInt(b.month, 1, horizon)
+    if (month == null) return []
     const amount = moneyParam(b.amount) ?? '0'
     if (rec === 'every') {
-      const everyN = Math.max(2, Number(b.everyN) || 2)
-      return `every:${month}:${everyN}:${amount}`
+      const everyN = parseBoundedInt(b.everyN, 2, MAX_RECURRENCE_MONTHS)
+      return everyN == null ? [] : [`every:${month}:${everyN}:${amount}`]
     }
-    return `${rec}:${month}:${amount}`
+    return [`${rec}:${month}:${amount}`]
   }).join('|')
 }
 
 /** Decode `ex` param → balloon rows (no ids; amounts as formatted money strings). */
-export function decodeExtras(raw) {
+export function decodeExtras(raw, maxMonth = MAX_MONTHS) {
   if (!raw || typeof raw !== 'string') return []
+  const horizon = parseBoundedInt(maxMonth, 1, MAX_MONTHS) ?? MAX_MONTHS
   const out = []
   for (const part of raw.split('|')) {
     const bits = part.split(':').filter(Boolean)
@@ -76,15 +83,15 @@ export function decodeExtras(raw) {
 
     if (rec === 'every') {
       if (bits.length < 4) continue
-      const month = parseIntClamped(bits[1], 1, 600)
-      const everyN = parseIntClamped(bits[2], 2, 120)
+      const month = parseBoundedInt(bits[1], 1, horizon)
+      const everyN = parseBoundedInt(bits[2], 2, MAX_RECURRENCE_MONTHS)
       const amount = parseNum(bits[3])
       if (month == null || everyN == null || amount == null || amount < 0) continue
       out.push({ recurrence: 'every', month, everyN, amount: formatMoney(amount) })
       continue
     }
 
-    const month = parseIntClamped(bits[1], 1, 600)
+    const month = parseBoundedInt(bits[1], 1, horizon)
     const amount = parseNum(bits[2])
     if (month == null || amount == null || amount < 0) continue
     out.push({
@@ -102,9 +109,19 @@ function curvesEqual(a, b) {
   return a.every((v, i) => Math.abs(v - b[i]) < 1e-9)
 }
 
+function validCurveControls(controls) {
+  return (
+    Array.isArray(controls) &&
+    controls.length === 6 &&
+    controls.every(
+      value => Number.isFinite(Number(value)) && Number(value) >= CURVE_MIN && Number(value) <= CURVE_MAX
+    )
+  )
+}
+
 function encodeScenario(prefix, scenario, params) {
   const dp = parseMoney(scenario.downPayment)
-  const months = Math.max(1, Number(scenario.months) || 1)
+  const months = parseBoundedInt(scenario.months, 1, MAX_MONTHS) ?? DEFAULTS.months
   const interest = Math.max(0, Number(scenario.interest) || 0)
   const rp = scenario.ratePeriod === 'aa' ? 'aa' : 'am'
   const ee = scenario.extraEffect === 'term' ? 'term' : 'payment'
@@ -116,7 +133,7 @@ function encodeScenario(prefix, scenario, params) {
   if (ee !== 'payment') params.set(`${prefix}ee`, ee)
   if (scenario.balloonEnabled) {
     params.set(`${prefix}be`, '1')
-    const ex = encodeExtras(scenario.balloons)
+    const ex = encodeExtras(scenario.balloons, months)
     if (ex) params.set(`${prefix}ex`, ex)
   }
 }
@@ -134,7 +151,7 @@ function encodeStartMonth(state, params) {
 function decodeScenario(prefix, params, fallback) {
   const base = { ...fallback }
   const dp = parseNum(params.get(`${prefix}dp`))
-  const months = parseIntClamped(params.get(`${prefix}n`), 1, 600)
+  const months = parseBoundedInt(params.get(`${prefix}n`), 1, MAX_MONTHS)
   const interest = parseNum(params.get(`${prefix}i`))
   const rp = params.get(`${prefix}rp`)
   const ee = params.get(`${prefix}ee`)
@@ -148,11 +165,11 @@ function decodeScenario(prefix, params, fallback) {
   if (EXTRA_EFFECTS.has(ee)) base.extraEffect = ee
   if (be === '1' || be === 'true') {
     base.balloonEnabled = true
-    const balloons = decodeExtras(ex)
+    const balloons = decodeExtras(ex, base.months)
     base.balloons = balloons
   } else if (ex) {
     base.balloonEnabled = true
-    base.balloons = decodeExtras(ex)
+    base.balloons = decodeExtras(ex, base.months)
   }
   return base
 }
@@ -179,7 +196,7 @@ export function encodeState(state) {
   }
 
   const dp = parseMoney(state.downPayment)
-  const months = Math.max(1, Number(state.months) || 1)
+  const months = parseBoundedInt(state.months, 1, MAX_MONTHS) ?? DEFAULTS.months
   const interest = Math.max(0, Number(state.interest) || 0)
   const rp = state.ratePeriod === 'aa' ? 'aa' : 'am'
   const ee = state.extraEffect === 'term' ? 'term' : 'payment'
@@ -201,13 +218,15 @@ export function encodeState(state) {
 
   if (state.balloonEnabled) {
     params.set('be', '1')
-    const ex = encodeExtras(state.balloons)
+    const ex = encodeExtras(state.balloons, months)
     if (ex) params.set('ex', ex)
   }
 
   if (mode === 'growing') {
     const preset = PRESETS.has(state.activePreset) ? state.activePreset : null
-    const controls = Array.isArray(state.curveControls) ? state.curveControls : null
+    const controls = validCurveControls(state.curveControls)
+      ? state.curveControls.map(Number)
+      : null
     if (preset && curvesEqual(controls, curvePresets[preset])) {
       if (preset !== 'linear') params.set('p', preset)
     } else if (controls?.length === 6) {
@@ -286,7 +305,7 @@ export function decodeState(search) {
     touched = true
   }
 
-  const months = parseIntClamped(params.get('n'), 1, 600)
+  const months = parseBoundedInt(params.get('n'), 1, MAX_MONTHS)
   if (months != null) {
     out.months = months
     touched = true
@@ -332,7 +351,7 @@ export function decodeState(search) {
   const ex = params.get('ex')
   if (be === '1' || be === 'true' || ex) {
     out.balloonEnabled = true
-    out.balloons = decodeExtras(ex)
+    out.balloons = decodeExtras(ex, out.months ?? DEFAULTS.months)
     touched = true
   }
 
@@ -346,7 +365,7 @@ export function decodeState(search) {
   const curveRaw = params.get('c')
   if (curveRaw) {
     const parts = curveRaw.split(',').map(s => parseNum(s.trim()))
-    if (parts.length === 6 && parts.every(v => v != null && v > 0)) {
+    if (validCurveControls(parts)) {
       out.curveControls = parts
       out.activePreset = 'custom'
       touched = true

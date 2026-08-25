@@ -67,6 +67,29 @@ describe('encodeExtras / decodeExtras', () => {
       { recurrence: 'once', month: 3, everyN: 6, amount: '1.000,00' }
     ])
   })
+
+  it('rejects fractional and out-of-horizon months and recurrence intervals', () => {
+    const decoded = decodeExtras(
+      'once:2.5:100|once:0:100|once:13:100|every:2:2.5:100|every:2:121:100|monthly:12:100',
+      12
+    )
+
+    expect(decoded).toEqual([
+      { recurrence: 'monthly', month: 12, everyN: 6, amount: '100,00' }
+    ])
+  })
+
+  it('does not encode rejected extra fields as corrected values', () => {
+    const encoded = encodeExtras([
+      { recurrence: 'once', month: 2.5, amount: '100,00' },
+      { recurrence: 'once', month: 13, amount: '100,00' },
+      { recurrence: 'every', month: 2, everyN: 2.5, amount: '100,00' },
+      { recurrence: 'invalid', month: 2, amount: '100,00' },
+      { recurrence: 'monthly', month: 12, amount: '100,00' }
+    ], 12)
+
+    expect(encoded).toBe('monthly:12:100')
+  })
 })
 
 describe('encodeState / decodeState', () => {
@@ -94,6 +117,32 @@ describe('encodeState / decodeState', () => {
     expect(parseMoney(decoded.downPayment)).toBe(90000)
     expect(decoded.months).toBe(48)
     expect(decoded.interest).toBe(0.95)
+  })
+
+  it('rejects fractional and out-of-range terms instead of rounding or clamping', () => {
+    expect(decodeState('?n=36.5')).toBeNull()
+    expect(decodeState('?n=0')).toBeNull()
+    expect(decodeState('?n=601')).toBeNull()
+
+    const params = encodeState({
+      ...baseState,
+      months: 36.5,
+      balloonEnabled: true,
+      balloons: [{ recurrence: 'once', month: 40, amount: '1.000,00' }]
+    })
+    expect(params.get('n')).toBeNull()
+    expect(params.get('ex')).toBeNull()
+  })
+
+  it('filters decoded extras against the sanitized contract term', () => {
+    const decoded = decodeState(
+      '?n=12&be=1&ex=once:12:1000|once:13:1000|every:2:2.5:500'
+    )
+
+    expect(decoded.months).toBe(12)
+    expect(decoded.balloons).toEqual([
+      { recurrence: 'once', month: 12, everyN: 6, amount: '1.000,00' }
+    ])
   })
 
   it('round-trips growing mode with preset', () => {
@@ -126,6 +175,22 @@ describe('encodeState / decodeState', () => {
     expect(params.get('c')).toBe('0.5,0.8,1.1,1.4,1.7,2')
     const decoded = decodeState(params)
     expect(decoded.curveControls).toEqual(controls)
+  })
+
+  it('rejects custom curve controls outside the engine contract', () => {
+    expect(decodeState('?m=growing&c=0.1,0.25,1,1,1,1')).toEqual({
+      mode: 'growing'
+    })
+    expect(decodeState('?c=0.25,1,1,1,1,2.51')).toBeNull()
+    expect(decodeState('?c=0.25,1,1,1,1,Infinity')).toBeNull()
+
+    const params = encodeState({
+      ...baseState,
+      mode: 'growing',
+      activePreset: 'custom',
+      curveControls: [0.1, 1, 1, 1, 1, 2.5]
+    })
+    expect(params.get('c')).toBeNull()
   })
 
   it('round-trips compare + inverse + extras', () => {
@@ -208,6 +273,17 @@ describe('encodeState / decodeState', () => {
     expect(parseMoney(decoded.scenarioB.downPayment)).toBe(50000)
     expect(decoded.scenarioB.extraEffect).toBe('term')
     expect(decoded.scenarioB.ratePeriod).toBe('aa')
+  })
+
+  it('sanitizes terms and extras inside A/B scenarios', () => {
+    const decoded = decodeState(
+      '?m=ab&an=12.5&aex=once:37:1000&bn=24&bex=once:25:1000|every:2:2.5:500'
+    )
+
+    expect(decoded.scenarioA.months).toBe(36)
+    expect(decoded.scenarioA.balloons).toEqual([])
+    expect(decoded.scenarioB.months).toBe(24)
+    expect(decoded.scenarioB.balloons).toEqual([])
   })
 
   it('round-trips start month when it is not the current month', () => {
