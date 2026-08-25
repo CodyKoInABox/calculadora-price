@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
-import { brl, formatInstallmentMonth } from '../format'
+import { brl, formatInstallmentMonth, monthCashOut } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
 
@@ -40,8 +40,8 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
         labels,
         datasets: [
           {
-            label: 'Parcela A',
-            data: series(a.schedule, r => r.payment + r.balloon),
+            label: 'Desembolso total A',
+            data: series(a.schedule, monthCashOut),
             borderColor: '#524fa0',
             backgroundColor: 'rgba(82,79,160,.08)',
             fill: false,
@@ -52,8 +52,8 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
             yAxisID: 'y'
           },
           {
-            label: 'Parcela B',
-            data: series(b.schedule, r => r.payment + r.balloon),
+            label: 'Desembolso total B',
+            data: series(b.schedule, monthCashOut),
             borderColor: '#0f8a65',
             backgroundColor: 'rgba(15,138,101,.08)',
             fill: false,
@@ -239,7 +239,7 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
         <div className="chart-card-head">
           <div>
             <h2 id={expand.titleId} className="panel-title">Evolução lado a lado</h2>
-            <p className="panel-subtitle tight">Parcelas e saldo devedor — A vs B.</p>
+            <p className="panel-subtitle tight">Desembolso total e saldo devedor — A vs B.</p>
           </div>
           <ChartExpandButton onClick={expand.toggle} expanded={expand.expanded} />
         </div>
@@ -252,7 +252,7 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
         <div className="table-head">
           <div>
             <h2 className="panel-title">Tabela comparativa</h2>
-            <p className="panel-subtitle tight">Mês a mês: parcela, diferença e saldo.</p>
+            <p className="panel-subtitle tight">Deltas calculados como B menos A.</p>
           </div>
           <div className="table-actions">
             <StartMonthPicker value={startMonth} onChange={onStartMonthChange} />
@@ -265,9 +265,12 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
             <thead>
               <tr>
                 <th>Mês</th>
-                <th>Parcela A</th>
-                <th>Parcela B</th>
-                <th>Δ</th>
+                <th>Regular A</th>
+                <th>Regular B</th>
+                <th>Δ regular</th>
+                <th>Total A</th>
+                <th>Total B</th>
+                <th>Δ total no mês</th>
                 <th>Saldo A</th>
                 <th>Saldo B</th>
               </tr>
@@ -277,27 +280,35 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
                 const rowA = a.schedule[i]
                 const rowB = b.schedule[i]
                 const month = (rowA ?? rowB).month
-                const balloon = (rowA?.balloon || 0) > 0 || (rowB?.balloon || 0) > 0
-                let deltaClass
-                let deltaLabel = '—'
-                if (rowA && rowB) {
-                  const delta = rowB.payment - rowA.payment
-                  if (delta > 0) deltaClass = 'delta-pos'
-                  else if (delta < 0) deltaClass = 'delta-neg'
-                  deltaLabel = delta === 0
-                    ? '—'
-                    : `${delta > 0 ? '+' : ''}${brl.format(delta)}`
-                }
+                const regularDelta = (rowB?.payment || 0) - (rowA?.payment || 0)
+                const totalDelta =
+                  (rowB ? monthCashOut(rowB) : 0) - (rowA ? monthCashOut(rowA) : 0)
+                const extra = (rowA?.balloon || 0) > 0 || (rowB?.balloon || 0) > 0
+                const regularDeltaClass = regularDelta > 0
+                  ? 'delta-pos'
+                  : regularDelta < 0 ? 'delta-neg' : undefined
+                const totalDeltaClass = totalDelta > 0
+                  ? 'delta-pos'
+                  : totalDelta < 0 ? 'delta-neg' : undefined
+                const regularDeltaLabel = regularDelta === 0
+                  ? '—'
+                  : `${regularDelta > 0 ? '+' : ''}${brl.format(regularDelta)}`
+                const totalDeltaLabel = totalDelta === 0
+                  ? '—'
+                  : `${totalDelta > 0 ? '+' : ''}${brl.format(totalDelta)}`
                 return (
-                  <tr key={month} className={balloon ? 'balloon-row' : undefined}>
+                  <tr key={month} className={extra ? 'balloon-row' : undefined}>
                     <td>
                       {month}
-                      {balloon && <span className="badge-balloon">BALÃO</span>}
+                      {extra && <span className="badge-balloon">EXTRA</span>}
                       <span className="month-cal">{formatInstallmentMonth(startMonth, month)}</span>
                     </td>
                     <td>{rowA ? brl.format(rowA.payment) : '—'}</td>
                     <td>{rowB ? brl.format(rowB.payment) : '—'}</td>
-                    <td className={deltaClass}>{deltaLabel}</td>
+                    <td className={regularDeltaClass}>{regularDeltaLabel}</td>
+                    <td>{rowA ? brl.format(monthCashOut(rowA)) : '—'}</td>
+                    <td>{rowB ? brl.format(monthCashOut(rowB)) : '—'}</td>
+                    <td className={totalDeltaClass}>{totalDeltaLabel}</td>
                     <td>{rowA ? brl.format(rowA.balance) : '—'}</td>
                     <td>{rowB ? brl.format(rowB.balance) : '—'}</td>
                   </tr>
