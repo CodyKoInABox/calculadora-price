@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment, annualToMonthly, monthlyToAnnual } from './math'
-import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number } from './format'
+import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number, currentYearMonth } from './format'
 import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
 import { exportPdf } from './exportPdf'
 import CurveEditor from './components/CurveEditor'
@@ -286,6 +286,7 @@ export default function App() {
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)
   const [shareCopied, setShareCopied] = useState(false)
+  const [startMonth, setStartMonth] = useState(currentYearMonth)
   const curveRaf = useRef(null)
   const urlSyncReady = useRef(false)
   const shareCopiedTimer = useRef(null)
@@ -449,6 +450,7 @@ export default function App() {
     if (decoded.curveControls) setCurveControls(nextControls)
     if (decoded.scenarioA) setScenarioA(nextA)
     if (decoded.scenarioB) setScenarioB(nextB)
+    if (decoded.startMonth) setStartMonth(decoded.startMonth)
 
     runSimulate({
       propertyValue: nextProperty,
@@ -495,14 +497,15 @@ export default function App() {
         activePreset,
         curveControls,
         scenarioA,
-        scenarioB
+        scenarioB,
+        startMonth
       })
     }, 150)
     return () => clearTimeout(timer)
   }, [
     propertyValue, downPayment, months, interest, ratePeriod, mode, direction,
     solveFor, maxPayment, extraEffect, balloonEnabled, balloons, activePreset,
-    curveControls, scenarioA, scenarioB
+    curveControls, scenarioA, scenarioB, startMonth
   ])
 
   useEffect(() => () => {
@@ -526,7 +529,8 @@ export default function App() {
       activePreset,
       curveControls,
       scenarioA,
-      scenarioB
+      scenarioB,
+      startMonth
     })
     try {
       await navigator.clipboard.writeText(url)
@@ -963,7 +967,9 @@ export default function App() {
             <AbComparePanel
               a={abResult?.a}
               b={abResult?.b}
-              onExport={() => exportAbCompareCsv(abResult?.a?.schedule, abResult?.b?.schedule)}
+              startMonth={startMonth}
+              onStartMonthChange={setStartMonth}
+              onExport={() => exportAbCompareCsv(abResult?.a?.schedule, abResult?.b?.schedule, startMonth)}
               onExportPdf={exportPdf}
             />
           )}
@@ -971,7 +977,9 @@ export default function App() {
             <ComparePanel
               price={compareResult?.price}
               sac={compareResult?.sac}
-              onExport={() => exportCompareCsv(compareResult?.price?.schedule, compareResult?.sac?.schedule)}
+              startMonth={startMonth}
+              onStartMonthChange={setStartMonth}
+              onExport={() => exportCompareCsv(compareResult?.price?.schedule, compareResult?.sac?.schedule, startMonth)}
               onExportPdf={exportPdf}
             />
           )}
@@ -979,7 +987,9 @@ export default function App() {
             <ResultsPanel
               result={result}
               mode={mode}
-              onExport={() => exportScheduleCsv(result?.schedule)}
+              startMonth={startMonth}
+              onStartMonthChange={setStartMonth}
+              onExport={() => exportScheduleCsv(result?.schedule, startMonth)}
               onExportPdf={exportPdf}
             />
           )}

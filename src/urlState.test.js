@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { curvePresets, parseMoney } from './math'
+import { currentYearMonth } from './format'
 import {
   encodeState,
   decodeState,
@@ -207,6 +208,18 @@ describe('encodeState / decodeState', () => {
     expect(parseMoney(decoded.scenarioB.downPayment)).toBe(50000)
     expect(decoded.scenarioB.extraEffect).toBe('term')
     expect(decoded.scenarioB.ratePeriod).toBe('aa')
+  })
+
+  it('round-trips start month when it is not the current month', () => {
+    const state = { ...baseState, startMonth: { year: 2031, month: 3 } }
+    const params = encodeState(state)
+    expect(params.get('sm')).toBe('2031-03')
+    expect(decodeState(params).startMonth).toEqual({ year: 2031, month: 3 })
+  })
+
+  it('omits start month when it matches the current month', () => {
+    const state = { ...baseState, startMonth: currentYearMonth() }
+    expect(encodeState(state).get('sm')).toBeNull()
   })
 
   it('returns null for empty or garbage-only search', () => {

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Chart from 'chart.js/auto'
-import { brl } from '../format'
+import { brl, formatInstallmentMonth } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
+import StartMonthPicker from './StartMonthPicker.jsx'
 
 function totalPaid(result) {
   return result.down + result.totalRegular + result.totalBalloon
@@ -14,7 +15,7 @@ function prazoLabel(result) {
   return `${result.months}×`
 }
 
-export default function AbComparePanel({ a, b, onExport, onExportPdf }) {
+export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, onExport, onExportPdf }) {
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
   const getChart = useCallback(() => chartInstance.current, [])
@@ -254,6 +255,7 @@ export default function AbComparePanel({ a, b, onExport, onExportPdf }) {
             <p className="panel-subtitle tight">Mês a mês: parcela, diferença e saldo.</p>
           </div>
           <div className="table-actions">
+            <StartMonthPicker value={startMonth} onChange={onStartMonthChange} />
             <button type="button" onClick={onExport}>Exportar CSV</button>
             {onExportPdf && <button type="button" onClick={onExportPdf}>Exportar PDF</button>}
           </div>
@@ -291,6 +293,7 @@ export default function AbComparePanel({ a, b, onExport, onExportPdf }) {
                     <td>
                       {month}
                       {balloon && <span className="badge-balloon">BALÃO</span>}
+                      <span className="month-cal">{formatInstallmentMonth(startMonth, month)}</span>
                     </td>
                     <td>{rowA ? brl.format(rowA.payment) : '—'}</td>
                     <td>{rowB ? brl.format(rowB.payment) : '—'}</td>
