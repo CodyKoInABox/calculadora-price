@@ -1,6 +1,7 @@
 import { CURVE_MAX, CURVE_MIN, curvePresets, parseMoney } from './math'
 import { currentYearMonth, number, parseYearMonthInput, yearMonthInputValue } from './format'
 import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
+import { EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 
 const MODES = new Set(['price', 'growing', 'compare', 'ab'])
 const RATE_PERIODS = new Set(['am', 'aa'])
@@ -237,8 +238,31 @@ export function encodeState(state) {
     }
   }
 
+  encodeCosts(state.costInputs, params)
   encodeStartMonth(state, params)
   return params
+}
+
+function encodeCosts(costInputs, params) {
+  if (!costInputs) return
+  const costs = parseCostInputs(costInputs)
+  if (costs.upfront > 0) params.set('tu', moneyParam(costs.upfront))
+  if (costs.monthlyAdmin > 0) params.set('ta', moneyParam(costs.monthlyAdmin))
+  if (costs.mipMonthly > 0) params.set('mip', String(costs.mipMonthly))
+  if (costs.dfiAnnual > 0) params.set('dfi', String(costs.dfiAnnual))
+}
+
+function decodeCosts(params) {
+  const costInputs = {}
+  const tu = parseNum(params.get('tu'))
+  if (tu != null && tu > 0) costInputs.upfront = formatMoney(tu)
+  const ta = parseNum(params.get('ta'))
+  if (ta != null && ta > 0) costInputs.monthlyAdmin = formatMoney(ta)
+  const mip = parseNum(params.get('mip'))
+  if (mip != null && mip > 0) costInputs.mipMonthly = String(mip).replace('.', ',')
+  const dfi = parseNum(params.get('dfi'))
+  if (dfi != null && dfi > 0) costInputs.dfiAnnual = String(dfi).replace('.', ',')
+  return Object.keys(costInputs).length ? { ...EMPTY_COST_INPUTS, ...costInputs } : null
 }
 
 /**
@@ -353,6 +377,12 @@ export function decodeState(search) {
   if (be === '1' || be === 'true' || ex) {
     out.balloonEnabled = true
     out.balloons = decodeExtras(ex, out.months ?? DEFAULTS.months)
+    touched = true
+  }
+
+  const costInputs = decodeCosts(params)
+  if (costInputs) {
+    out.costInputs = costInputs
     touched = true
   }
 

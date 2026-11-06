@@ -324,3 +324,24 @@ describe('buildShareUrl', () => {
     expect(buildShareUrl(baseState, loc)).toBe('https://example.com/calculadora-price/')
   })
 })
+
+describe('cost inputs in share links', () => {
+  it('round-trips insurance and fee inputs', () => {
+    const costInputs = { upfront: '3.000,00', monthlyAdmin: '25,00', mipMonthly: '0,03', dfiAnnual: '0,06' }
+    const params = encodeState({ ...baseState, costInputs })
+
+    expect(params.get('tu')).toBe('3000')
+    expect(params.get('ta')).toBe('25')
+    expect(params.get('mip')).toBe('0.03')
+    expect(params.get('dfi')).toBe('0.06')
+    expect(decodeState(params).costInputs).toEqual(costInputs)
+  })
+
+  it('omits cost params when every cost is empty or zero', () => {
+    const params = encodeState({
+      ...baseState,
+      costInputs: { upfront: '0,00', monthlyAdmin: '', mipMonthly: '0', dfiAnnual: '' }
+    })
+    expect(params.toString()).toBe('')
+  })
+})

@@ -517,6 +517,7 @@ export default function App() {
     const nextA = decoded.scenarioA
       ? { ...decoded.scenarioA, balloons: cloneExtras(decoded.scenarioA.balloons || []) }
       : scenarioA
+    const nextCosts = decoded.costInputs ?? costInputs
     const nextB = decoded.scenarioB
       ? { ...decoded.scenarioB, balloons: cloneExtras(decoded.scenarioB.balloons || []) }
       : scenarioB
@@ -538,6 +539,7 @@ export default function App() {
     if (decoded.scenarioA) setScenarioA(nextA)
     if (decoded.scenarioB) setScenarioB(nextB)
     if (decoded.startMonth) setStartMonth(decoded.startMonth)
+    if (decoded.costInputs) setCostInputs(decoded.costInputs)
 
     runSimulate({
       propertyValue: nextProperty,
@@ -554,7 +556,8 @@ export default function App() {
       balloons: nextBalloons,
       curveControls: nextControls,
       scenarioA: nextA,
-      scenarioB: nextB
+      scenarioB: nextB,
+      costInputs: nextCosts
     })
 
     // Allow URL writes after hydrate setters flush
@@ -585,14 +588,15 @@ export default function App() {
         curveControls,
         scenarioA,
         scenarioB,
-        startMonth
+        startMonth,
+        costInputs
       })
     }, 150)
     return () => clearTimeout(timer)
   }, [
     propertyValue, downPayment, months, interest, ratePeriod, mode, direction,
     solveFor, maxPayment, extraEffect, balloonEnabled, balloons, activePreset,
-    curveControls, scenarioA, scenarioB, startMonth
+    curveControls, scenarioA, scenarioB, startMonth, costInputs
   ])
 
   useEffect(() => () => {
@@ -617,7 +621,8 @@ export default function App() {
       curveControls,
       scenarioA,
       scenarioB,
-      startMonth
+      startMonth,
+      costInputs
     })
     try {
       await navigator.clipboard.writeText(url)
