@@ -1,6 +1,10 @@
 export const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 export const number = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+export function percentAa(decimal) {
+  return `${number.format(decimal * 100)}% a.a.`
+}
+
 const PT_SHORT_MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
 export function currentYearMonth() {
