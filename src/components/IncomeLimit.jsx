@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { brl, formatMoneyInput, number } from '../format'
-import { parseMoney } from '../math'
+import { parseMoney } from '../engine/math'
 
 const SHARES = [25, 30, 35]
 

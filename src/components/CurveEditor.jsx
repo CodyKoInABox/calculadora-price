@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Chart from '../charts'
-import { clampCurveValue, curveWeightAt, CURVE_MIN, CURVE_MAX } from '../math'
+import { clampCurveValue, curveWeightAt, CURVE_MIN, CURVE_MAX } from '../engine/math'
 
 const CURVE_SAMPLE_COUNT = 100
 const CURVE_POINT_LABELS = ['Início', '20%', '40%', '60%', '80%', 'Fim']

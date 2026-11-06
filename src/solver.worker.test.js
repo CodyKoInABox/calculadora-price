@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { curvePresets, simulateFinancing, solveFromMaxPayment } from './math'
+import { curvePresets, simulateFinancing, solveFromMaxPayment } from './engine/math'
 
 async function runWorker(jobs) {
   const posted = []
