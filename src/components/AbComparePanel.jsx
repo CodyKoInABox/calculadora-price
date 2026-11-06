@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import Chart from '../charts'
 import { brl, formatInstallmentMonth, monthCashOut } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'

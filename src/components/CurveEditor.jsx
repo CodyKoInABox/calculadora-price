@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import Chart from 'chart.js/auto'
+import Chart from '../charts'
 import { clampCurveValue, curveWeightAt, CURVE_MIN, CURVE_MAX } from '../math'
 
 const CURVE_SAMPLE_COUNT = 100
