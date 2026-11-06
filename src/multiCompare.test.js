@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { curvePresets, simulateFinancing } from './math'
+import { curvePresets, simulateFinancing } from './engine/math'
 import { compareSavedScenarios, runSavedScenario, MAX_COMPARE } from './multiCompare'
 import { encodeState } from './urlState'
 

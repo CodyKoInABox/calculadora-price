@@ -1,4 +1,4 @@
-import { simulateFinancing, solveFromMaxPayment } from './math'
+import { simulateFinancing, solveFromMaxPayment } from './engine/math'
 
 const solvers = {
   forward: simulateFinancing,

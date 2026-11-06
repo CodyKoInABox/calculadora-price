@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { curvePresets, pricePayment, simulateFinancing } from './math'
-import { parseTrInput } from './sacre'
+import { curvePresets, pricePayment, simulateFinancing } from './engine/math'
+import { parseTrInput } from './engine/sacre'
 import { decodeState, encodeState } from './urlState'
 
 const base = {
