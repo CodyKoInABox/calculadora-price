@@ -2,6 +2,18 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.2.0]
+
+### Adicionado
+- CET (custo efetivo total) no resumo e na comparação Price × SAC, calculado pela TIR mensal dos fluxos e anualizado.
+- Bloco "Seguros e taxas" com tarifas iniciais, taxa de administração, MIP (sobre o saldo) e DFI (sobre o imóvel). Afetam só o CET, não a parcela.
+- Total de seguros e taxas no resumo, com a diferença em pontos percentuais em relação à taxa contratada.
+- "Calcular pela renda": define a parcela máxima como 25%, 30% ou 35% da renda bruta (modo "A partir da parcela").
+- Seguros e taxas entram no link de compartilhamento.
+
+### Observações
+- No modo A vs B, o CET ainda não é exibido.
+
 ## [1.1.0]
 
 ### Corrigido
