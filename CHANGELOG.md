@@ -1,7 +1,12 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.3.0]
+
+### Adicionado
+- Painel "Amortizar ou investir?": compara os juros economizados pelos extras com o rendimento líquido de aplicar o mesmo dinheiro até o fim do contrato. Mostra a taxa de equilíbrio e aceita aplicações isentas de IR.
+- CET em cada cenário do modo A vs B.
 ## [1.2.0]
 
 ### Adicionado

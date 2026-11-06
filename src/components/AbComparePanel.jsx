@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react'
+﻿import { useCallback, useEffect, useRef } from 'react'
 import Chart from '../charts'
-import { brl, formatInstallmentMonth, monthCashOut } from '../format'
+import { brl, formatInstallmentMonth, monthCashOut, percentAa } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
 
@@ -196,6 +196,12 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
               <span>Total de juros</span>
               <strong>{brl.format(a.totalInterest)}</strong>
             </div>
+            {a.cost && Number.isFinite(a.cost.cetAnnual) && (
+              <div className="metric">
+                <span>CET</span>
+                <strong>{percentAa(a.cost.cetAnnual)}</strong>
+              </div>
+            )}
             <div className="metric">
               <span>Total pago</span>
               <strong>{brl.format(aPaid)}</strong>
@@ -221,6 +227,12 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
               <span>Total de juros</span>
               <strong>{brl.format(b.totalInterest)}</strong>
             </div>
+            {b.cost && Number.isFinite(b.cost.cetAnnual) && (
+              <div className="metric">
+                <span>CET</span>
+                <strong>{percentAa(b.cost.cetAnnual)}</strong>
+              </div>
+            )}
             <div className="metric">
               <span>Total pago</span>
               <strong>{brl.format(bPaid)}</strong>
