@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Chart from '../charts'
-import { brl, formatInstallmentMonth, monthCashOut } from '../format'
+import { brl, formatInstallmentMonth, monthCashOut, percentAa } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
 
@@ -237,6 +237,13 @@ export default function ComparePanel({ price, sac, startMonth, onStartMonthChang
               <span>Total de juros</span>
               <strong>{brl.format(price.totalInterest)}</strong>
             </div>
+            {price.cost && Number.isFinite(price.cost.cetAnnual) && (
+              <div className="metric">
+                <span>CET</span>
+                <strong>{percentAa(price.cost.cetAnnual)}</strong>
+                <small>Com seguros e taxas informados</small>
+              </div>
+            )}
             <div className="metric">
               <span>Total pago</span>
               <strong>{brl.format(pricePaid)}</strong>
@@ -270,6 +277,13 @@ export default function ComparePanel({ price, sac, startMonth, onStartMonthChang
               <span>Total de juros</span>
               <strong>{brl.format(sac.totalInterest)}</strong>
             </div>
+            {sac.cost && Number.isFinite(sac.cost.cetAnnual) && (
+              <div className="metric">
+                <span>CET</span>
+                <strong>{percentAa(sac.cost.cetAnnual)}</strong>
+                <small>Com seguros e taxas informados</small>
+              </div>
+            )}
             <div className="metric">
               <span>Total pago</span>
               <strong>{brl.format(sacPaid)}</strong>

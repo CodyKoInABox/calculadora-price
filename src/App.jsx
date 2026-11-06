@@ -5,6 +5,9 @@ import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DE
 import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
 import { exportPdf } from './exportPdf'
 import { solveInBackground } from './solverClient'
+import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
+import CostsEditor from './components/CostsEditor'
+import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
@@ -311,6 +314,7 @@ export default function App() {
   const [startMonth, setStartMonth] = useState(currentYearMonth)
   const [solving, setSolving] = useState(false)
   const [formError, setFormError] = useState(null)
+  const [costInputs, setCostInputs] = useState(EMPTY_COST_INPUTS)
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -337,6 +341,17 @@ export default function App() {
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
     const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
+    const costs = parseCostInputs(overrides.costInputs ?? costInputs)
+    const withCost = out => {
+      if (out.error) return out
+      return {
+        ...out,
+        cost: {
+          ...computeCost({ principal: out.principal, property: out.property, schedule: out.schedule, costs }),
+          contractAnnual: monthlyToAnnual(rate)
+        }
+      }
+    }
     const token = ++solveToken.current
     const isStale = () => token !== solveToken.current
     if (!useInverse) setSolving(false)
@@ -431,7 +446,7 @@ export default function App() {
         return
       }
       if (useInverse) syncSolvedFields(priceOut)
-      setCompareResult({ price: priceOut, sac: sacOut })
+      setCompareResult({ price: withCost(priceOut), sac: withCost(sacOut) })
       setResult(null)
       setAbResult(null)
       return
@@ -474,10 +489,10 @@ export default function App() {
       return
     }
     if (useInverse) syncSolvedFields(out)
-    setResult(out)
+    setResult(withCost(out))
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs])
 
   useEffect(() => {
     const decoded = decodeState(window.location.search)
@@ -503,6 +518,7 @@ export default function App() {
     const nextA = decoded.scenarioA
       ? { ...decoded.scenarioA, balloons: cloneExtras(decoded.scenarioA.balloons || []) }
       : scenarioA
+    const nextCosts = decoded.costInputs ?? costInputs
     const nextB = decoded.scenarioB
       ? { ...decoded.scenarioB, balloons: cloneExtras(decoded.scenarioB.balloons || []) }
       : scenarioB
@@ -524,6 +540,7 @@ export default function App() {
     if (decoded.scenarioA) setScenarioA(nextA)
     if (decoded.scenarioB) setScenarioB(nextB)
     if (decoded.startMonth) setStartMonth(decoded.startMonth)
+    if (decoded.costInputs) setCostInputs(decoded.costInputs)
 
     runSimulate({
       propertyValue: nextProperty,
@@ -540,7 +557,8 @@ export default function App() {
       balloons: nextBalloons,
       curveControls: nextControls,
       scenarioA: nextA,
-      scenarioB: nextB
+      scenarioB: nextB,
+      costInputs: nextCosts
     })
 
     // Allow URL writes after hydrate setters flush
@@ -571,14 +589,15 @@ export default function App() {
         curveControls,
         scenarioA,
         scenarioB,
-        startMonth
+        startMonth,
+        costInputs
       })
     }, 150)
     return () => clearTimeout(timer)
   }, [
     propertyValue, downPayment, months, interest, ratePeriod, mode, direction,
     solveFor, maxPayment, extraEffect, balloonEnabled, balloons, activePreset,
-    curveControls, scenarioA, scenarioB, startMonth
+    curveControls, scenarioA, scenarioB, startMonth, costInputs
   ])
 
   useEffect(() => () => {
@@ -603,7 +622,8 @@ export default function App() {
       curveControls,
       scenarioA,
       scenarioB,
-      startMonth
+      startMonth,
+      costInputs
     })
     try {
       await navigator.clipboard.writeText(url)
@@ -929,6 +949,8 @@ export default function App() {
                     </div>
                     <p className="footnote">Pagamentos extras não entram neste limite.</p>
                   </div>
+
+                  <IncomeLimit onApply={value => setMaxPayment(value)} />
                 </>
               )}
 
@@ -1025,6 +1047,11 @@ export default function App() {
                 onAdd={addBalloon}
                 onPatch={patchBalloon}
                 onRemove={id => setBalloons(prev => prev.filter(b => b.id !== id))}
+              />
+
+              <CostsEditor
+                values={costInputs}
+                onChange={patch => setCostInputs(prev => ({ ...prev, ...patch }))}
               />
             </>
           )}

@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
 import Chart from '../charts'
-import { brl, formatInstallmentMonth, monthCashOut } from '../format'
+import { brl, formatInstallmentMonth, monthCashOut, number, percentAa } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
+
+function cetNote(cost) {
+  const contract = percentAa(cost.contractAnnual)
+  if (cost.totalCost <= 0) return `Sem seguros ou taxas. Contratada: ${contract}`
+  const spread = number.format((cost.cetAnnual - cost.contractAnnual) * 100)
+  return `Contratada: ${contract} · +${spread} p.p. por seguros e taxas`
+}
 
 export default function ResultsPanel({ result, mode, startMonth, onStartMonthChange, onExport, onExportPdf }) {
   const paymentRef = useRef(null)
@@ -199,6 +206,20 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
               <span>Total pago</span>
               <strong>{brl.format(totalPaid)}</strong>
               <small>Entrada + parcelas regulares + extras</small>
+            </div>
+          )}
+          {result.cost && Number.isFinite(result.cost.cetAnnual) && (
+            <div className="metric metric-cet">
+              <span>CET (custo efetivo total)</span>
+              <strong>{percentAa(result.cost.cetAnnual)}</strong>
+              <small>{cetNote(result.cost)}</small>
+            </div>
+          )}
+          {result.cost && result.cost.totalCost > 0 && (
+            <div className="metric">
+              <span>Seguros e taxas</span>
+              <strong>{brl.format(result.cost.totalCost)}</strong>
+              <small>Iniciais, MIP, DFI e administração</small>
             </div>
           )}
         </div>

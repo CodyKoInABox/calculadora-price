@@ -924,3 +924,78 @@ tr.balloon-row td { background: #fff9ee; }
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.soft-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: #fbfbfe;
+}
+
+.soft-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.soft-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.soft-details summary::after {
+  content: '+';
+  color: var(--primary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.soft-details[open] summary::after {
+  content: '−';
+}
+
+.soft-details summary small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.soft-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .soft-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.soft-details-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.income-apply:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.metric-cet strong {
+  color: var(--primary);
+}
