@@ -1,7 +1,7 @@
 {
   "name": "pricecalc",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "description": "Calculadora PRICE avançada — simulador gratuito de financiamento com curva interativa e balões.",
   "license": "MIT",
