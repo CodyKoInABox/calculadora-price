@@ -2,6 +2,20 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.0.0]
+
+### Alterado (interno, sem mudança de uso)
+- O motor (`math`, `costs`, `invest`, `sacre`) foi movido para `src/engine/`, sem dependência de React ou DOM. `src/engine/index.js` é a API pública.
+- Helpers de estado, defaults e a conversão de taxas saíram do `App.jsx` para `src/appState.js`. `InterestField` e `ExtrasEditor` viraram componentes próprios. `saveBlob` foi para `src/download.js`. O `App.jsx` caiu de cerca de 1270 para 973 linhas.
+
+### Adicionado
+- Testes de propriedades do motor com `fast-check`: saldo sempre zera, amortizações fecham o principal, SAC e Price com parcela constante, identidade do razão no SACRE, balão nunca alonga o prazo.
+- `npm run build:engine` gera `dist-engine/`, um pacote ESM sem dependências com o motor. Ainda não publicado no npm.
+
+### Pendente
+- Reducer para o estado do `App.jsx` e hook para os cenários salvos (#31 segue aberta).
+- Publicação do pacote `calculadora-price-engine` (#32 segue aberta).
+
 ## [1.6.0]
 
 ### Adicionado
