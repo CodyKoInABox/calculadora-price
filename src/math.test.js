@@ -392,7 +392,6 @@ describe('simulateFinancing — SAC', () => {
     const principal = 100_000
     const rate = 0.01
     const months = 12
-    const amort = principal / months
     const r = runSim({ property: principal, down: 0, months, rate, mode: 'sac' })
 
     expect(r.error).toBeUndefined()
