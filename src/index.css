@@ -1061,3 +1061,28 @@ tr.balloon-row td { background: #fff9ee; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Saved scenarios (v1.5) */
+.scenario-save { margin-top: 12px; }
+.scenario-save > label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.scenario-save-row { display: flex; gap: 8px; }
+.scenario-save-row input { flex: 1; min-width: 0; }
+.scenario-save-row button:disabled,
+.scenario-io button:disabled { opacity: 0.5; cursor: not-allowed; }
+.scenario-items { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.scenario-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.scenario-meta { display: grid; min-width: 0; }
+.scenario-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scenario-meta small { color: var(--muted); font-size: 11px; }
+.scenario-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-ghost { background: transparent; }
+.scenario-io { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.file-trigger { display: inline-flex; align-items: center; cursor: pointer; }

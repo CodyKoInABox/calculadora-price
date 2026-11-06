@@ -2,6 +2,15 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.5.0]
+
+### Adicionado
+- Cenários salvos no navegador (localStorage): salvar a configuração atual com um nome, carregar e excluir. Cada cenário guarda o mesmo conteúdo de um link de compartilhamento, incluindo custos, SACRE e modo A vs B.
+- Exportar e importar cenários em JSON. A importação valida o formato e ignora entradas inválidas.
+
+### Alterado
+- Carregar um link ou um cenário passa a usar os valores padrão para o que não foi informado, em vez de manter o estado atual. Os cenários A e B do modo A vs B são mantidos ao carregar um cenário de outro modo.
+
 ## [1.4.0]
 
 ### Adicionado
