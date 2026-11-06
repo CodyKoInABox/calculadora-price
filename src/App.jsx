@@ -7,6 +7,7 @@ import { exportPdf } from './exportPdf'
 import { solveInBackground } from './solverClient'
 import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 import CostsEditor from './components/CostsEditor'
+import { compareAmortizeInvest, DEFAULT_INVEST_INPUTS, parseInvestRate } from './invest'
 import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
@@ -315,6 +316,7 @@ export default function App() {
   const [solving, setSolving] = useState(false)
   const [formError, setFormError] = useState(null)
   const [costInputs, setCostInputs] = useState(EMPTY_COST_INPUTS)
+  const [investInputs, setInvestInputs] = useState(DEFAULT_INVEST_INPUTS)
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -342,15 +344,37 @@ export default function App() {
     const nextB = overrides.scenarioB ?? scenarioB
     const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
     const costs = parseCostInputs(overrides.costInputs ?? costInputs)
-    const withCost = out => {
+    const withCost = (out, rateValue) => {
       if (out.error) return out
       return {
         ...out,
         cost: {
           ...computeCost({ principal: out.principal, property: out.property, schedule: out.schedule, costs }),
-          contractAnnual: monthlyToAnnual(rate)
+          contractAnnual: monthlyToAnnual(rateValue)
         }
       }
+    }
+    const withInvest = (out, rateValue) => {
+      if (out.error || balloonMap.size === 0) return out
+      const base = simulateFinancing({
+        property: out.property,
+        down: out.down,
+        months: nextMonths,
+        rate: rateValue,
+        mode: nextMode,
+        balloons: new Map(),
+        curveControls: nextControls,
+        extraEffect: nextEffect
+      })
+      const invest = compareAmortizeInvest({
+        result: out,
+        baseResult: base,
+        contributions: balloonMap,
+        months: nextMonths,
+        annualRate: parseInvestRate(investInputs.rate),
+        taxed: investInputs.taxed
+      })
+      return invest ? { ...out, invest } : out
     }
     const token = ++solveToken.current
     const isStale = () => token !== solveToken.current
@@ -394,7 +418,10 @@ export default function App() {
         reportError(outA.error || outB.error)
         return
       }
-      setAbResult({ a: outA, b: outB })
+      setAbResult({
+        a: withCost(outA, toMonthlyRate(nextA.interest, nextA.ratePeriod || 'am')),
+        b: withCost(outB, toMonthlyRate(nextB.interest, nextB.ratePeriod || 'am'))
+      })
       setResult(null)
       setCompareResult(null)
       return
@@ -446,7 +473,7 @@ export default function App() {
         return
       }
       if (useInverse) syncSolvedFields(priceOut)
-      setCompareResult({ price: withCost(priceOut), sac: withCost(sacOut) })
+      setCompareResult({ price: withCost(priceOut, rate), sac: withCost(sacOut, rate) })
       setResult(null)
       setAbResult(null)
       return
@@ -489,10 +516,10 @@ export default function App() {
       return
     }
     if (useInverse) syncSolvedFields(out)
-    setResult(withCost(out))
+    setResult(withInvest(withCost(out, rate), rate))
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, investInputs])
 
   useEffect(() => {
     const decoded = decodeState(window.location.search)
@@ -1098,6 +1125,8 @@ export default function App() {
           {mode !== 'ab' && mode !== 'compare' && (
             <ResultsPanel
               result={result}
+              investInputs={investInputs}
+              onInvestChange={patch => setInvestInputs(prev => ({ ...prev, ...patch }))}
               mode={mode}
               startMonth={startMonth}
               onStartMonthChange={setStartMonth}
