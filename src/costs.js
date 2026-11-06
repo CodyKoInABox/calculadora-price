@@ -1,8 +1,30 @@
+import { parseMoney } from './math'
+
 export const DEFAULT_COSTS = {
   upfront: 0,
   monthlyAdmin: 0,
   mipMonthly: 0,
   dfiAnnual: 0
+}
+
+export const EMPTY_COST_INPUTS = {
+  upfront: '',
+  monthlyAdmin: '',
+  mipMonthly: '',
+  dfiAnnual: ''
+}
+
+export function parseCostInputs(raw = EMPTY_COST_INPUTS) {
+  const percent = value => {
+    const parsed = Number(String(value ?? '').trim().replace(',', '.'))
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+  }
+  return {
+    upfront: parseMoney(raw.upfront),
+    monthlyAdmin: parseMoney(raw.monthlyAdmin),
+    mipMonthly: percent(raw.mipMonthly),
+    dfiAnnual: percent(raw.dfiAnnual)
+  }
 }
 
 const round2 = value => Math.round(value * 100) / 100
