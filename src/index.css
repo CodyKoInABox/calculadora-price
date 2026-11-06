@@ -1086,3 +1086,16 @@ tr.balloon-row td { background: #fff9ee; }
 .btn-ghost { background: transparent; }
 .scenario-io { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .file-trigger { display: inline-flex; align-items: center; cursor: pointer; }
+
+/* Multi-scenario comparison (v1.6) */
+.scenario-check { width: 16px; height: 16px; margin: 0; flex-shrink: 0; accent-color: var(--primary); }
+.scenario-check:disabled { opacity: 0.4; }
+.multi-compare { margin-bottom: 20px; }
+.multi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.multi-table th,
+.multi-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.multi-table th:first-child,
+.multi-table td:first-child { text-align: left; }
+.multi-table th { font-weight: 700; }
+.multi-chart { position: relative; height: 320px; margin-top: 16px; }
+.multi-errors { margin: 12px 0 0; padding-left: 18px; color: var(--danger); font-size: 13px; }

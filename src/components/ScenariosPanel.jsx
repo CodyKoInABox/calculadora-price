@@ -1,15 +1,19 @@
 import { useId, useState } from 'react'
 import { cleanName } from '../savedScenarios'
+import { MAX_COMPARE } from '../multiCompare'
 
 function formatSavedAt(value) {
   if (!Number.isFinite(value)) return 'Importado'
   return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function ScenariosPanel({ items, error, onSave, onLoad, onDelete, onExport, onImport }) {
+export default function ScenariosPanel({ items, error, onSave, onLoad, onDelete, onExport, onImport, onCompare }) {
   const [name, setName] = useState('')
+  const [selected, setSelected] = useState([])
   const nameId = useId()
   const fileId = useId()
+
+  const selectedItems = items.filter(item => selected.includes(item.id))
 
   const submit = e => {
     e.preventDefault()
@@ -17,6 +21,13 @@ export default function ScenariosPanel({ items, error, onSave, onLoad, onDelete,
     if (!clean) return
     onSave(clean)
     setName('')
+  }
+
+  const toggle = id => {
+    setSelected(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id)
+      return prev.length < MAX_COMPARE ? [...prev, id] : prev
+    })
   }
 
   return (
@@ -47,32 +58,54 @@ export default function ScenariosPanel({ items, error, onSave, onLoad, onDelete,
       {items.length === 0 ? (
         <p className="footnote">Nenhum cenário salvo ainda.</p>
       ) : (
-        <ul className="scenario-items">
-          {items.map(item => (
-            <li key={item.id} className="scenario-item">
-              <div className="scenario-meta">
-                <strong>{item.name}</strong>
-                <small>{formatSavedAt(item.savedAt)}</small>
-              </div>
-              <div className="scenario-actions">
-                <button type="button" className="btn-small" onClick={() => onLoad(item)}>
-                  Carregar
-                </button>
-                <button
-                  type="button"
-                  className="btn-small btn-ghost"
-                  onClick={() => onDelete(item.id)}
-                  aria-label={`Excluir ${item.name}`}
-                >
-                  Excluir
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="footnote">Marque de 2 a {MAX_COMPARE} cenários para comparar lado a lado.</p>
+          <ul className="scenario-items">
+            {items.map(item => {
+              const checked = selected.includes(item.id)
+              return (
+                <li key={item.id} className="scenario-item">
+                  <input
+                    type="checkbox"
+                    className="scenario-check"
+                    checked={checked}
+                    disabled={!checked && selectedItems.length >= MAX_COMPARE}
+                    onChange={() => toggle(item.id)}
+                    aria-label={`Comparar ${item.name}`}
+                  />
+                  <div className="scenario-meta">
+                    <strong>{item.name}</strong>
+                    <small>{formatSavedAt(item.savedAt)}</small>
+                  </div>
+                  <div className="scenario-actions">
+                    <button type="button" className="btn-small" onClick={() => onLoad(item)}>
+                      Carregar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-small btn-ghost"
+                      onClick={() => onDelete(item.id)}
+                      aria-label={`Excluir ${item.name}`}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </>
       )}
 
       <div className="scenario-io">
+        <button
+          type="button"
+          className="btn-small"
+          disabled={selectedItems.length < 2}
+          onClick={() => onCompare(selectedItems)}
+        >
+          Comparar ({selectedItems.length})
+        </button>
         <button type="button" className="btn-small" onClick={onExport} disabled={!items.length}>
           Exportar JSON
         </button>

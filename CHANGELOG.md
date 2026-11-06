@@ -2,6 +2,17 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.6.0]
+
+### Adicionado
+- Comparação de até 4 cenários salvos lado a lado: tabela de indicadores (parcelas, juros, total pago, CET, seguros) e gráfico do saldo devedor mês a mês.
+- Relatório PDF próprio, gerado no navegador sem dependências. Inclui o resumo e a tabela completa no modo de cálculo direto, e os indicadores lado a lado nos modos Price × SAC e A vs B. Não usa mais `window.print()`.
+- PWA: manifesto, ícone e service worker. Depois do primeiro carregamento, a calculadora abre offline. Fontes do Google ficam fora do cache e caem para a fonte do sistema.
+
+### Notas
+- O PDF usa Helvetica com codificação WinAnsi. Caracteres fora dessa codificação (por exemplo, setas) aparecem como `?`.
+- O bundle cresceu para cerca de 499 kB (155 kB gzip). Ainda não investiguei a causa.
+
 ## [1.5.0]
 
 ### Adicionado
