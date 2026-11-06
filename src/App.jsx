@@ -2,13 +2,15 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { curvePresets, extrasToMap, parseMoney, simulateFinancing, annualToMonthly, monthlyToAnnual } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number, currentYearMonth } from './format'
 import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
-import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
+import { applyUrlToHistory, buildShareUrl, decodeState, encodeState } from './urlState'
 import { exportPdf } from './exportPdf'
 import { solveInBackground } from './solverClient'
 import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 import CostsEditor from './components/CostsEditor'
 import SacreOptions from './components/SacreOptions'
 import { parseTrInput } from './sacre'
+import { addSaved, exportFile, importFile, mergeImported, readSaved, removeSaved, writeSaved } from './savedScenarios'
+import ScenariosPanel from './components/ScenariosPanel'
 import { compareAmortizeInvest, DEFAULT_INVEST_INPUTS, parseInvestRate } from './invest'
 import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
@@ -28,6 +30,47 @@ function newExtra(overrides = {}) {
     amount: number.format(10000),
     ...overrides
   }
+}
+
+function cloneScenario(scenario) {
+  return { ...scenario, balloons: cloneExtras(scenario.balloons || []) }
+}
+
+function getStorage() {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+function saveBlob(filename, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+const DEFAULT_APP_STATE = {
+  propertyValue: number.format(DEFAULT_PROPERTY),
+  downPayment: number.format(DEFAULT_DOWN),
+  months: DEFAULT_MONTHS,
+  interest: DEFAULT_INTEREST,
+  ratePeriod: 'am',
+  mode: 'price',
+  direction: 'forward',
+  solveFor: 'principal',
+  maxPayment: number.format(DEFAULT_MAX_PAYMENT),
+  extraEffect: 'payment',
+  balloonEnabled: false,
+  balloons: [],
+  activePreset: 'linear',
+  curveControls: [...curvePresets.linear],
+  costInputs: EMPTY_COST_INPUTS,
+  sacre: false,
+  trRate: ''
 }
 
 function cloneExtras(extras) {
@@ -321,6 +364,8 @@ export default function App() {
   const [investInputs, setInvestInputs] = useState(DEFAULT_INVEST_INPUTS)
   const [sacre, setSacre] = useState(false)
   const [trRate, setTrRate] = useState('')
+  const [saved, setSaved] = useState(() => readSaved(getStorage()))
+  const [savedError, setSavedError] = useState(null)
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -532,6 +577,117 @@ export default function App() {
   }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, investInputs, sacre, trRate])
 
   useEffect(() => {
+    writeSaved(getStorage(), saved)
+  }, [saved])
+
+  const applyState = decoded => {
+    const s = {
+      ...DEFAULT_APP_STATE,
+      ...decoded,
+      scenarioA: decoded.scenarioA ?? scenarioA,
+      scenarioB: decoded.scenarioB ?? scenarioB
+    }
+    const nextBalloons = cloneExtras(s.balloons)
+    const nextA = cloneScenario(s.scenarioA)
+    const nextB = cloneScenario(s.scenarioB)
+    const nextControls = [...s.curveControls]
+
+    setPropertyValue(s.propertyValue)
+    setDownPayment(s.downPayment)
+    setMonths(s.months)
+    setInterest(s.interest)
+    setRatePeriod(s.ratePeriod)
+    setMode(s.mode)
+    setDirection(s.direction)
+    setSolveFor(s.solveFor)
+    setMaxPayment(s.maxPayment)
+    setExtraEffect(s.extraEffect)
+    setBalloonEnabled(s.balloonEnabled)
+    setBalloons(nextBalloons)
+    setActivePreset(s.activePreset)
+    setCurveControls(nextControls)
+    setScenarioA(nextA)
+    setScenarioB(nextB)
+    setCostInputs(s.costInputs)
+    setSacre(s.sacre)
+    setTrRate(s.trRate)
+    if (decoded.startMonth) setStartMonth(decoded.startMonth)
+
+    runSimulate({
+      propertyValue: s.propertyValue,
+      downPayment: s.downPayment,
+      months: s.months,
+      interest: s.interest,
+      ratePeriod: s.ratePeriod,
+      mode: s.mode,
+      direction: s.direction,
+      solveFor: s.solveFor,
+      maxPayment: s.maxPayment,
+      extraEffect: s.extraEffect,
+      balloonEnabled: s.balloonEnabled,
+      balloons: nextBalloons,
+      curveControls: nextControls,
+      scenarioA: nextA,
+      scenarioB: nextB,
+      costInputs: s.costInputs,
+      sacre: s.sacre,
+      trRate: s.trRate
+    })
+  }
+
+  const onSaveScenario = name => {
+    const query = encodeState({
+      propertyValue,
+      downPayment,
+      months,
+      interest,
+      ratePeriod,
+      mode,
+      direction,
+      solveFor,
+      maxPayment,
+      extraEffect,
+      balloonEnabled,
+      balloons,
+      activePreset,
+      curveControls,
+      scenarioA,
+      scenarioB,
+      costInputs,
+      sacre,
+      trRate
+    }).toString()
+    const next = addSaved(saved, { name, query })
+    if (next.error) {
+      setSavedError(next.error)
+      return
+    }
+    setSavedError(null)
+    setSaved(next.list)
+  }
+
+  const onLoadScenario = item => {
+    setSavedError(null)
+    applyState(decodeState(item.query) ?? {})
+  }
+
+  const onDeleteScenario = id => setSaved(prev => removeSaved(prev, id))
+
+  const onExportScenarios = () => {
+    saveBlob('cenarios-calculadora-price.json', exportFile(saved), 'application/json')
+  }
+
+  const onImportScenarios = async file => {
+    const result = importFile(await file.text())
+    if (result.error) {
+      setSavedError(result.error)
+      return
+    }
+    setSavedError(null)
+    setSaved(prev => mergeImported(prev, result.scenarios))
+  }
+
+  useEffect(() => {
     const decoded = decodeState(window.location.search)
     if (!decoded) {
       runSimulate()
@@ -539,70 +695,7 @@ export default function App() {
       return
     }
 
-    const nextProperty = decoded.propertyValue ?? propertyValue
-    const nextDown = decoded.downPayment ?? downPayment
-    const nextMonths = decoded.months ?? months
-    const nextInterest = decoded.interest ?? interest
-    const nextRatePeriod = decoded.ratePeriod ?? ratePeriod
-    const nextMode = decoded.mode ?? mode
-    const nextDirection = decoded.direction ?? direction
-    const nextSolveFor = decoded.solveFor ?? solveFor
-    const nextMaxPayment = decoded.maxPayment ?? maxPayment
-    const nextEffect = decoded.extraEffect ?? extraEffect
-    const nextEnabled = decoded.balloonEnabled ?? balloonEnabled
-    const nextBalloons = decoded.balloons ? cloneExtras(decoded.balloons) : balloons
-    const nextControls = decoded.curveControls ? [...decoded.curveControls] : curveControls
-    const nextA = decoded.scenarioA
-      ? { ...decoded.scenarioA, balloons: cloneExtras(decoded.scenarioA.balloons || []) }
-      : scenarioA
-    const nextCosts = decoded.costInputs ?? costInputs
-    const nextSacre = decoded.sacre ?? sacre
-    const nextTr = decoded.trRate ?? trRate
-    const nextB = decoded.scenarioB
-      ? { ...decoded.scenarioB, balloons: cloneExtras(decoded.scenarioB.balloons || []) }
-      : scenarioB
-
-    if (decoded.propertyValue != null) setPropertyValue(decoded.propertyValue)
-    if (decoded.downPayment != null) setDownPayment(decoded.downPayment)
-    if (decoded.months != null) setMonths(decoded.months)
-    if (decoded.interest != null) setInterest(decoded.interest)
-    if (decoded.ratePeriod != null) setRatePeriod(decoded.ratePeriod)
-    if (decoded.mode != null) setMode(decoded.mode)
-    if (decoded.direction != null) setDirection(decoded.direction)
-    if (decoded.solveFor != null) setSolveFor(decoded.solveFor)
-    if (decoded.maxPayment != null) setMaxPayment(decoded.maxPayment)
-    if (decoded.extraEffect != null) setExtraEffect(decoded.extraEffect)
-    if (decoded.balloonEnabled != null) setBalloonEnabled(decoded.balloonEnabled)
-    if (decoded.balloons) setBalloons(nextBalloons)
-    if (decoded.activePreset != null) setActivePreset(decoded.activePreset)
-    if (decoded.curveControls) setCurveControls(nextControls)
-    if (decoded.scenarioA) setScenarioA(nextA)
-    if (decoded.scenarioB) setScenarioB(nextB)
-    if (decoded.startMonth) setStartMonth(decoded.startMonth)
-    if (decoded.costInputs) setCostInputs(decoded.costInputs)
-    if (decoded.sacre != null) setSacre(decoded.sacre)
-    if (decoded.trRate != null) setTrRate(decoded.trRate)
-
-    runSimulate({
-      propertyValue: nextProperty,
-      downPayment: nextDown,
-      months: nextMonths,
-      interest: nextInterest,
-      ratePeriod: nextRatePeriod,
-      mode: nextMode,
-      direction: nextDirection,
-      solveFor: nextSolveFor,
-      maxPayment: nextMaxPayment,
-      extraEffect: nextEffect,
-      balloonEnabled: nextEnabled,
-      balloons: nextBalloons,
-      curveControls: nextControls,
-      scenarioA: nextA,
-      scenarioB: nextB,
-      costInputs: nextCosts,
-      sacre: nextSacre,
-      trRate: nextTr
-    })
+    applyState(decoded)
 
     // Allow URL writes after hydrate setters flush
     requestAnimationFrame(() => {
@@ -1112,6 +1205,16 @@ export default function App() {
               />
             </>
           )}
+
+          <ScenariosPanel
+            items={saved}
+            error={savedError}
+            onSave={onSaveScenario}
+            onLoad={onLoadScenario}
+            onDelete={onDeleteScenario}
+            onExport={onExportScenarios}
+            onImport={onImportScenarios}
+          />
 
           {formError && <p className="form-error" role="alert">{formError}</p>}
           <button className="calculate" type="button" onClick={() => runSimulate()}>
