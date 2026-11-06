@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import Chart from '../charts'
 import { brl, formatInstallmentMonth, monthCashOut } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
@@ -221,6 +221,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
           role={paymentExpand.expanded ? 'dialog' : undefined}
           aria-modal={paymentExpand.expanded || undefined}
           aria-labelledby={paymentExpand.expanded ? paymentExpand.titleId : undefined}
+          ref={paymentExpand.dialogRef}
         >
           <div className="chart-card-head">
             <div>

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import Chart from 'chart.js/auto'
+import Chart from '../charts'
 import { clampCurveValue, curveWeightAt, CURVE_MIN, CURVE_MAX } from '../math'
 
 const CURVE_SAMPLE_COUNT = 100
+const CURVE_POINT_LABELS = ['Início', '20%', '40%', '60%', '80%', 'Fim']
 
 function curveSeries(controls) {
   return Array.from({ length: CURVE_SAMPLE_COUNT + 1 }, (_, index) => {
@@ -143,38 +144,16 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
       if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
     }
 
-    const onKeyDown = event => {
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault()
-        const next = Math.max(0, Math.min(controlsRef.current.length - 1, activePointRef.current + (event.key === 'ArrowRight' ? 1 : -1)))
-        setActivePoint(next)
-        activePointRef.current = next
-        chart.update('none')
-        return
-      }
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault()
-        const direction = event.key === 'ArrowUp' ? 1 : -1
-        const next = [...controlsRef.current]
-        next[activePointRef.current] = clampCurveValue(next[activePointRef.current] + direction * .05, 0)
-        updateData(next)
-        chart.update('none')
-        onChange(next, null)
-      }
-    }
-
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('pointercancel', onPointerUp)
-    canvas.addEventListener('keydown', onKeyDown)
 
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointercancel', onPointerUp)
-      canvas.removeEventListener('keydown', onKeyDown)
       chart.destroy()
       chartRef.current = null
     }
@@ -187,6 +166,12 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
     chart.data.datasets[1].data = controlSeries(controls)
     chart.update('none')
   }, [controls, activePoint])
+
+  const onSliderChange = (index, value) => {
+    const next = [...controls]
+    next[index] = clampCurveValue(value, 0.05)
+    onChange(next, null)
+  }
 
   const presets = [
     ['linear', 'Crescente'],
@@ -219,12 +204,26 @@ export default function CurveEditor({ controls, activePreset, onChange, onPreset
       <div className={`curve-editor-wrap${dragging ? ' dragging' : ''}`} ref={wrapRef}>
         <canvas
           ref={canvasRef}
-          tabIndex={0}
-          role="img"
-          aria-label="Editor da curva das parcelas. Arraste os seis pontos; use as setas esquerda e direita para selecionar e para cima e para baixo para ajustar."
+          aria-hidden="true"
         />
       </div>
-      <div className="curve-axis"><span>Primeira parcela</span><span>Última parcela</span></div>
+      <div className="curve-sliders" role="group" aria-label="Peso relativo de cada ponto da curva">
+        {controls.map((value, index) => (
+          <label key={CURVE_POINT_LABELS[index]} className="curve-slider">
+            <span>{CURVE_POINT_LABELS[index]}</span>
+            <input
+              type="range"
+              min={CURVE_MIN}
+              max={CURVE_MAX}
+              step={0.05}
+              value={value}
+              aria-valuetext={`${Number(value).toFixed(2)}×`}
+              onChange={e => onSliderChange(index, Number(e.target.value))}
+            />
+            <output>{Number(value).toFixed(2)}×</output>
+          </label>
+        ))}
+      </div>
     </div>
   )
 }

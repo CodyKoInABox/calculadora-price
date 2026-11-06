@@ -429,7 +429,6 @@ input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px 
 }
 .curve-editor-wrap.dragging { cursor: grabbing; }
 .curve-editor-wrap canvas:focus-visible { outline: 3px solid rgba(82,79,160,.24); outline-offset: -3px; border-radius: 12px; }
-.curve-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 600; padding: 7px 7px 0; }
 .curve-live { color: var(--success); font-size: 10px; font-weight: 800; white-space: nowrap; }
 
 .balloons { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 19px; }
@@ -516,7 +515,8 @@ input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px 
 
 .print-only { display: none; }
 
-.results { display: grid; gap: 20px; min-width: 0; }
+.results { display: grid; gap: 20px; min-width: 0; transition: opacity .2s ease; }
+.results.is-solving { opacity: .6; }
 .summary { padding: 24px; }
 .summary-top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 22px; }
 .status {
@@ -873,4 +873,54 @@ tr.balloon-row td { background: #fff9ee; }
   table { min-width: 0; }
   canvas { max-width: 100% !important; height: auto !important; }
   .chart-wrap, .donut-wrap { break-inside: avoid; }
+}
+
+.form-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: #fdecec;
+  border: 1px solid #f6c9c4;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.curve-sliders {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.curve-slider {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.curve-slider span {
+  font-weight: 600;
+}
+
+.curve-slider input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.curve-slider output {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .curve-sliders {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

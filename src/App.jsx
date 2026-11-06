@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment, annualToMonthly, monthlyToAnnual } from './math'
+import { curvePresets, extrasToMap, parseMoney, simulateFinancing, annualToMonthly, monthlyToAnnual } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number, currentYearMonth } from './format'
+import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
 import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
 import { exportPdf } from './exportPdf'
+import { solveInBackground } from './solverClient'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
@@ -34,9 +36,9 @@ function cloneExtras(extras) {
 
 function defaultScenarioA() {
   return {
-    downPayment: '60.000,00',
-    months: 36,
-    interest: 1,
+    downPayment: number.format(DEFAULT_DOWN),
+    months: DEFAULT_MONTHS,
+    interest: DEFAULT_INTEREST,
     ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
@@ -46,9 +48,9 @@ function defaultScenarioA() {
 
 function defaultScenarioB() {
   return {
-    downPayment: '80.000,00',
-    months: 48,
-    interest: 0.85,
+    downPayment: number.format(SCENARIO_B_DEFAULTS.down),
+    months: SCENARIO_B_DEFAULTS.months,
+    interest: SCENARIO_B_DEFAULTS.interest,
     ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
@@ -285,10 +287,10 @@ function ExtrasEditor({
 }
 
 export default function App() {
-  const [propertyValue, setPropertyValue] = useState('300.000,00')
-  const [downPayment, setDownPayment] = useState('60.000,00')
-  const [months, setMonths] = useState(36)
-  const [interest, setInterest] = useState(1)
+  const [propertyValue, setPropertyValue] = useState(number.format(DEFAULT_PROPERTY))
+  const [downPayment, setDownPayment] = useState(number.format(DEFAULT_DOWN))
+  const [months, setMonths] = useState(DEFAULT_MONTHS)
+  const [interest, setInterest] = useState(DEFAULT_INTEREST)
   const [ratePeriod, setRatePeriod] = useState('am')
   const [mode, setMode] = useState('price')
   const [curveControls, setCurveControls] = useState([...curvePresets.linear])
@@ -301,13 +303,16 @@ export default function App() {
   const [activeScenario, setActiveScenario] = useState('a')
   const [direction, setDirection] = useState('forward')
   const [solveFor, setSolveFor] = useState('principal')
-  const [maxPayment, setMaxPayment] = useState('8.000,00')
+  const [maxPayment, setMaxPayment] = useState(number.format(DEFAULT_MAX_PAYMENT))
   const [result, setResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [startMonth, setStartMonth] = useState(currentYearMonth)
+  const [solving, setSolving] = useState(false)
+  const [formError, setFormError] = useState(null)
   const curveRaf = useRef(null)
+  const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
   const shareCopiedTimer = useRef(null)
   const propertyId = useId()
@@ -316,7 +321,7 @@ export default function App() {
   const interestId = useId()
   const maxPaymentId = useId()
 
-  const runSimulate = useCallback((overrides = {}) => {
+  const runSimulate = useCallback(async (overrides = {}) => {
     const nextMode = overrides.mode ?? mode
     const nextControls = overrides.curveControls ?? curveControls
     const nextBalloons = overrides.balloons ?? balloons
@@ -332,12 +337,30 @@ export default function App() {
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
     const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
+    const token = ++solveToken.current
+    const isStale = () => token !== solveToken.current
+    if (!useInverse) setSolving(false)
+    setFormError(null)
 
     const reportError = message => {
       if (nextMode === 'ab') setAbResult(null)
       else if (nextMode === 'compare') setCompareResult(null)
       else setResult(null)
-      alert(message)
+      setFormError(message)
+    }
+
+    const runInverse = async jobs => {
+      setSolving(true)
+      try {
+        const outs = await solveInBackground(jobs)
+        if (!outs || isStale()) return null
+        return outs
+      } catch (error) {
+        if (!isStale()) reportError(error.message)
+        return null
+      } finally {
+        if (!isStale()) setSolving(false)
+      }
     }
 
     const syncSolvedFields = out => {
@@ -392,8 +415,13 @@ export default function App() {
           targetPayment,
           solveFor: nextSolveFor
         }
-        priceOut = solveFromMaxPayment({ ...inverseShared, mode: 'price' })
-        sacOut = solveFromMaxPayment({ ...inverseShared, mode: 'sac' })
+        const outs = await runInverse([
+          { kind: 'inverse', payload: { ...inverseShared, mode: 'price' } },
+          { kind: 'inverse', payload: { ...inverseShared, mode: 'sac' } }
+        ])
+        if (!outs) return
+        priceOut = outs[0]
+        sacOut = outs[1]
       } else {
         priceOut = simulateFinancing({ ...shared, mode: 'price' })
         sacOut = simulateFinancing({ ...shared, mode: 'sac' })
@@ -409,8 +437,11 @@ export default function App() {
       return
     }
 
-    const out = useInverse
-      ? solveFromMaxPayment({
+    let out
+    if (useInverse) {
+      const outs = await runInverse([{
+        kind: 'inverse',
+        payload: {
           property,
           down,
           months: nextMonths,
@@ -421,17 +452,22 @@ export default function App() {
           curveControls: nextControls,
           targetPayment,
           solveFor: nextSolveFor
-        })
-      : simulateFinancing({
-          property,
-          down,
-          months: nextMonths,
-          rate,
-          mode: nextMode,
-          balloons: balloonMap,
-          extraEffect: nextEffect,
-          curveControls: nextControls
-        })
+        }
+      }])
+      if (!outs) return
+      out = outs[0]
+    } else {
+      out = simulateFinancing({
+        property,
+        down,
+        months: nextMonths,
+        rate,
+        mode: nextMode,
+        balloons: balloonMap,
+        extraEffect: nextEffect,
+        curveControls: nextControls
+      })
+    }
 
     if (out.error) {
       reportError(out.error)
@@ -589,21 +625,31 @@ export default function App() {
     window.prompt('Copie o link:', url)
   }
 
+  const latest = useRef({})
+  latest.current = { runSimulate, direction }
+
   const onCurveChange = useCallback((next, presetId) => {
     setCurveControls(next)
     setActivePreset(presetId)
+    if (latest.current.direction === 'inverse') return
     if (curveRaf.current) cancelAnimationFrame(curveRaf.current)
     curveRaf.current = requestAnimationFrame(() => {
       curveRaf.current = null
-      runSimulate({ curveControls: next, mode: 'growing' })
+      latest.current.runSimulate({ curveControls: next, mode: 'growing' })
     })
-  }, [runSimulate])
+  }, [])
 
   const onPreset = useCallback((id) => {
     const next = [...curvePresets[id]]
     setCurveControls(next)
     setActivePreset(id)
-    runSimulate({ curveControls: next, mode: 'growing' })
+    latest.current.runSimulate({ curveControls: next, mode: 'growing' })
+  }, [])
+
+  useEffect(() => {
+    if (!urlSyncReady.current) return
+    const timer = setTimeout(() => runSimulate(), 350)
+    return () => clearTimeout(timer)
   }, [runSimulate])
 
   const addBalloon = () => {
@@ -983,8 +1029,9 @@ export default function App() {
             </>
           )}
 
+          {formError && <p className="form-error" role="alert">{formError}</p>}
           <button className="calculate" type="button" onClick={() => runSimulate()}>
-            {isInverse ? 'Calcular limite' : 'Calcular financiamento'}
+            {isInverse ? (solving ? 'Calculando…' : 'Calcular limite') : 'Calcular financiamento'}
           </button>
           <button className="share-link" type="button" onClick={onCopyLink}>
             {shareCopied ? 'Link copiado!' : 'Copiar link'}
@@ -992,7 +1039,7 @@ export default function App() {
           <p className="footnote">Simulação estimativa. Tarifas, seguros, correção monetária e impostos não estão incluídos. O link na barra de endereço carrega esta simulação.</p>
         </aside>
 
-        <div className="results">
+        <div className={`results${solving ? ' is-solving' : ''}`} aria-busy={solving}>
           <div className="print-only print-banner">
             <strong>Calculadora PRICE</strong>
             <span>

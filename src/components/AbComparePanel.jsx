@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import Chart from '../charts'
 import { brl, formatInstallmentMonth, monthCashOut } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
@@ -235,6 +235,7 @@ export default function AbComparePanel({ a, b, startMonth, onStartMonthChange, o
         role={expand.expanded ? 'dialog' : undefined}
         aria-modal={expand.expanded || undefined}
         aria-labelledby={expand.expanded ? expand.titleId : undefined}
+        ref={expand.dialogRef}
       >
         <div className="chart-card-head">
           <div>
