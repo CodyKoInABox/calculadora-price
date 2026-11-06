@@ -310,6 +310,7 @@ export default function App() {
   const [shareCopied, setShareCopied] = useState(false)
   const [startMonth, setStartMonth] = useState(currentYearMonth)
   const [solving, setSolving] = useState(false)
+  const [formError, setFormError] = useState(null)
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -339,12 +340,13 @@ export default function App() {
     const token = ++solveToken.current
     const isStale = () => token !== solveToken.current
     if (!useInverse) setSolving(false)
+    setFormError(null)
 
     const reportError = message => {
       if (nextMode === 'ab') setAbResult(null)
       else if (nextMode === 'compare') setCompareResult(null)
       else setResult(null)
-      alert(message)
+      setFormError(message)
     }
 
     const runInverse = async jobs => {
@@ -1027,6 +1029,7 @@ export default function App() {
             </>
           )}
 
+          {formError && <p className="form-error" role="alert">{formError}</p>}
           <button className="calculate" type="button" onClick={() => runSimulate()}>
             {isInverse ? (solving ? 'Calculando…' : 'Calcular limite') : 'Calcular financiamento'}
           </button>
