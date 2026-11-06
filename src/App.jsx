@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { curvePresets, extrasToMap, parseMoney, simulateFinancing, solveFromMaxPayment, annualToMonthly, monthlyToAnnual } from './math'
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number, currentYearMonth } from './format'
+import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
 import { applyUrlToHistory, buildShareUrl, decodeState } from './urlState'
 import { exportPdf } from './exportPdf'
 import CurveEditor from './components/CurveEditor'
@@ -34,9 +35,9 @@ function cloneExtras(extras) {
 
 function defaultScenarioA() {
   return {
-    downPayment: '60.000,00',
-    months: 36,
-    interest: 1,
+    downPayment: number.format(DEFAULT_DOWN),
+    months: DEFAULT_MONTHS,
+    interest: DEFAULT_INTEREST,
     ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
@@ -46,9 +47,9 @@ function defaultScenarioA() {
 
 function defaultScenarioB() {
   return {
-    downPayment: '80.000,00',
-    months: 48,
-    interest: 0.85,
+    downPayment: number.format(SCENARIO_B_DEFAULTS.down),
+    months: SCENARIO_B_DEFAULTS.months,
+    interest: SCENARIO_B_DEFAULTS.interest,
     ratePeriod: 'am',
     balloonEnabled: false,
     balloons: [],
@@ -285,10 +286,10 @@ function ExtrasEditor({
 }
 
 export default function App() {
-  const [propertyValue, setPropertyValue] = useState('300.000,00')
-  const [downPayment, setDownPayment] = useState('60.000,00')
-  const [months, setMonths] = useState(36)
-  const [interest, setInterest] = useState(1)
+  const [propertyValue, setPropertyValue] = useState(number.format(DEFAULT_PROPERTY))
+  const [downPayment, setDownPayment] = useState(number.format(DEFAULT_DOWN))
+  const [months, setMonths] = useState(DEFAULT_MONTHS)
+  const [interest, setInterest] = useState(DEFAULT_INTEREST)
   const [ratePeriod, setRatePeriod] = useState('am')
   const [mode, setMode] = useState('price')
   const [curveControls, setCurveControls] = useState([...curvePresets.linear])
@@ -301,7 +302,7 @@ export default function App() {
   const [activeScenario, setActiveScenario] = useState('a')
   const [direction, setDirection] = useState('forward')
   const [solveFor, setSolveFor] = useState('principal')
-  const [maxPayment, setMaxPayment] = useState('8.000,00')
+  const [maxPayment, setMaxPayment] = useState(number.format(DEFAULT_MAX_PAYMENT))
   const [result, setResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)

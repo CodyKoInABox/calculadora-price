@@ -1,5 +1,6 @@
 import { CURVE_MAX, CURVE_MIN, curvePresets, parseMoney } from './math'
 import { currentYearMonth, number, parseYearMonthInput, yearMonthInputValue } from './format'
+import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
 
 const MODES = new Set(['price', 'growing', 'compare', 'ab'])
 const RATE_PERIODS = new Set(['am', 'aa'])
@@ -12,15 +13,15 @@ const MAX_MONTHS = 600
 const MAX_RECURRENCE_MONTHS = 120
 
 const DEFAULTS = {
-  propertyValue: 300000,
-  downPayment: 60000,
-  months: 36,
-  interest: 1,
+  propertyValue: DEFAULT_PROPERTY,
+  downPayment: DEFAULT_DOWN,
+  months: DEFAULT_MONTHS,
+  interest: DEFAULT_INTEREST,
   ratePeriod: 'am',
   mode: 'price',
   direction: 'forward',
   solveFor: 'principal',
-  maxPayment: 8000,
+  maxPayment: DEFAULT_MAX_PAYMENT,
   extraEffect: 'payment',
   balloonEnabled: false,
   activePreset: 'linear',
@@ -284,9 +285,9 @@ export function decodeState(search) {
       extraEffect: 'payment'
     })
     out.scenarioB = decodeScenario('b', params, {
-      downPayment: formatMoney(80000),
-      months: 48,
-      interest: 0.85,
+      downPayment: formatMoney(SCENARIO_B_DEFAULTS.down),
+      months: SCENARIO_B_DEFAULTS.months,
+      interest: SCENARIO_B_DEFAULTS.interest,
       ratePeriod: 'am',
       balloonEnabled: false,
       balloons: [],
