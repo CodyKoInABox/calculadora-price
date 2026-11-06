@@ -12,14 +12,14 @@ export default function CostsEditor({ values, onChange }) {
   const dfiId = useId()
 
   return (
-    <details className="costs-editor">
+    <details className="soft-details">
       <summary>
         <span>
           Seguros e taxas
           <small>Entram só no CET. A parcela não muda.</small>
         </span>
       </summary>
-      <div className="costs-editor-grid">
+      <div className="soft-details-grid">
         <div className="field">
           <label htmlFor={upfrontId}>Tarifas iniciais</label>
           <div className="input-wrap">

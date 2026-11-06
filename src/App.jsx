@@ -7,6 +7,7 @@ import { exportPdf } from './exportPdf'
 import { solveInBackground } from './solverClient'
 import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 import CostsEditor from './components/CostsEditor'
+import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
@@ -948,6 +949,8 @@ export default function App() {
                     </div>
                     <p className="footnote">Pagamentos extras não entram neste limite.</p>
                   </div>
+
+                  <IncomeLimit onApply={value => setMaxPayment(value)} />
                 </>
               )}
 
