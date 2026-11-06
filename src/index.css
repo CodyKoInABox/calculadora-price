@@ -516,7 +516,8 @@ input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px 
 
 .print-only { display: none; }
 
-.results { display: grid; gap: 20px; min-width: 0; }
+.results { display: grid; gap: 20px; min-width: 0; transition: opacity .2s ease; }
+.results.is-solving { opacity: .6; }
 .summary { padding: 24px; }
 .summary-top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 22px; }
 .status {
