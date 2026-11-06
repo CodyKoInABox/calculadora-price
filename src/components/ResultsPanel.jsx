@@ -221,6 +221,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
           role={paymentExpand.expanded ? 'dialog' : undefined}
           aria-modal={paymentExpand.expanded || undefined}
           aria-labelledby={paymentExpand.expanded ? paymentExpand.titleId : undefined}
+          ref={paymentExpand.dialogRef}
         >
           <div className="chart-card-head">
             <div>

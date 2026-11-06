@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
 
 function resizeSoon(getChart) {
   requestAnimationFrame(() => {
@@ -15,6 +17,7 @@ function resizeSoon(getChart) {
 export function useChartExpand(getChart) {
   const [expanded, setExpanded] = useState(false)
   const titleId = useId()
+  const dialogRef = useRef(null)
 
   const open = useCallback(() => setExpanded(true), [])
   const close = useCallback(() => setExpanded(false), [])
@@ -27,8 +30,27 @@ export function useChartExpand(getChart) {
   useEffect(() => {
     if (!expanded) return
 
+    const returnFocus = document.activeElement
+    const focusables = () => [...(dialogRef.current?.querySelectorAll(FOCUSABLE) || [])]
+    focusables()[0]?.focus()
+
     const onKey = (event) => {
-      if (event.key === 'Escape') setExpanded(false)
+      if (event.key === 'Escape') {
+        setExpanded(false)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusables()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -36,10 +58,11 @@ export function useChartExpand(getChart) {
     return () => {
       document.body.style.overflow = prevOverflow
       document.removeEventListener('keydown', onKey)
+      returnFocus?.focus?.()
     }
   }, [expanded])
 
-  return { expanded, titleId, open, close, toggle }
+  return { expanded, titleId, dialogRef, open, close, toggle }
 }
 
 export function ChartExpandButton({ onClick, expanded }) {

@@ -284,6 +284,7 @@ export default function ComparePanel({ price, sac, startMonth, onStartMonthChang
         role={expand.expanded ? 'dialog' : undefined}
         aria-modal={expand.expanded || undefined}
         aria-labelledby={expand.expanded ? expand.titleId : undefined}
+        ref={expand.dialogRef}
       >
         <div className="chart-card-head">
           <div>
