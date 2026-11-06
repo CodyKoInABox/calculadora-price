@@ -207,7 +207,7 @@ function validateCommon({ months, rate, mode, balloons, curveControls, extraEffe
     return { error: `O prazo deve ser um número inteiro entre 1 e ${MAX_MONTHS} meses.` }
   }
   if (!Number.isFinite(rate) || rate < 0) return { error: 'A taxa de juros deve ser finita e não negativa.' }
-  if (!['price', 'growing', 'sac'].includes(mode)) return { error: 'O sistema de amortização é inválido.' }
+  if (!['price', 'growing', 'sac', 'sacre'].includes(mode)) return { error: 'O sistema de amortização é inválido.' }
   if (!validateCurveControls(curveControls)) {
     return {
       error: `A curva deve ter seis controles finitos entre ${CURVE_MIN} e ${CURVE_MAX}.`
@@ -308,6 +308,7 @@ function publicSchedule(schedule) {
     amortization: fromCents(row.amortization),
     balloon: fromCents(row.balloon),
     balance: fromCents(row.balance),
+    ...(row.correction ? { correction: fromCents(row.correction) } : {}),
     ...(row.interestFloorApplied ? { interestFloorApplied: true } : {})
   }))
 }
@@ -322,6 +323,7 @@ function buildResult({
   totalRegular,
   totalBalloon,
   totalBalloonsPlanned,
+  totalCorrection = 0,
   curveFloorApplied,
   schedule
 }) {
@@ -336,6 +338,7 @@ function buildResult({
     totalRegular: fromCents(totalRegular),
     totalBalloon: fromCents(totalBalloon),
     totalBalloonsPlanned: fromCents(totalBalloonsPlanned),
+    totalCorrection: fromCents(totalCorrection),
     curveFloorApplied,
     schedule: publicSchedule(schedule)
   }
@@ -361,7 +364,8 @@ export function simulateFinancing({
   mode,
   balloons,
   curveControls,
-  extraEffect = 'payment'
+  extraEffect = 'payment',
+  correctionRate = 0
 }) {
   const propertyCents = toCents(property)
   const downCents = toCents(down)
@@ -379,14 +383,17 @@ export function simulateFinancing({
     extraEffect
   })
   if (common.error) return { error: common.error }
+  if (!Number.isFinite(correctionRate) || correctionRate < 0 || (correctionRate > 0 && mode !== 'sacre')) {
+    return { error: 'A correção TR só está disponível no sistema SACRE e deve ser um percentual não negativo.' }
+  }
 
   const principal = propertyCents - downCents
   const weights = mode === 'growing' ? curveWeights(months, curveControls) : null
-  let priceContract = mode === 'price' ? pricePaymentInCents(principal, rate, months) : null
+  let priceContract = mode === 'price' || mode === 'sacre' ? pricePaymentInCents(principal, rate, months) : null
   let sacAmortization = mode === 'sac' ? roundedRatio(principal, months) : null
   let curveContract = null
 
-  if (mode === 'price' && priceContract === null) {
+  if ((mode === 'price' || mode === 'sacre') && priceContract === null) {
     return { error: 'Não foi possível calcular uma parcela PRICE finita.' }
   }
   if (mode === 'sac' && sacAmortization === null) {
@@ -404,14 +411,29 @@ export function simulateFinancing({
   let totalRegular = 0
   let totalBalloon = 0
   let curveFloorApplied = false
+  let totalCorrection = 0
 
   for (let month = 1; month <= months && balance > 0; month++) {
+    let correction = 0
+    if (mode === 'sacre' && correctionRate > 0) {
+      correction = roundedInterest(balance, correctionRate)
+      if (correction === null) return { error: 'A correção TR excedeu o limite numérico.' }
+      balance = addSafe(balance, correction)
+      if (balance === null) return { error: 'O saldo excedeu o limite numérico.' }
+      totalCorrection = addSafe(totalCorrection, correction)
+      if (totalCorrection === null) return { error: 'Os totais excederam o limite numérico.' }
+    }
+    // SACRE: installment is recalculated at each anniversary over the TR-corrected balance.
+    if (mode === 'sacre' && (month - 1) % 12 === 0) {
+      priceContract = pricePaymentInCents(balance, rate, months - month + 1)
+      if (priceContract === null) return { error: 'Não foi possível recalcular a parcela SACRE.' }
+    }
     const interest = roundedInterest(balance, rate)
     if (interest === null) return { error: 'O cálculo dos juros excedeu o limite numérico.' }
 
     let regular
     let rowFloorApplied = false
-    if (mode === 'price') {
+    if (mode === 'price' || mode === 'sacre') {
       regular = priceContract
     } else if (mode === 'sac') {
       regular = addSafe(interest, sacAmortization)
@@ -447,6 +469,7 @@ export function simulateFinancing({
       amortization,
       balloon: paid.balloon,
       balance: nextBalance,
+      correction,
       interestFloorApplied: rowFloorApplied
     })
     curveFloorApplied ||= rowFloorApplied
@@ -456,7 +479,7 @@ export function simulateFinancing({
     if (extraEffect !== 'payment' || paid.balloon === 0 || month === months) continue
 
     const remainingMonths = months - month
-    if (mode === 'price') {
+    if (mode === 'price' || mode === 'sacre') {
       priceContract = pricePaymentInCents(balance, rate, remainingMonths)
       if (priceContract === null) {
         return { error: 'Não foi possível recalcular uma parcela PRICE finita.' }
@@ -485,6 +508,7 @@ export function simulateFinancing({
     totalRegular,
     totalBalloon,
     totalBalloonsPlanned: common.total,
+    totalCorrection,
     curveFloorApplied,
     schedule
   })
@@ -534,7 +558,8 @@ export function solveFromMaxPayment({
   mode,
   balloons,
   curveControls,
-  extraEffect = 'payment'
+  extraEffect = 'payment',
+  correctionRate = 0
 }) {
   if (!Number.isFinite(targetPayment) || targetPayment <= 0) {
     return { error: 'Informe uma parcela regular máxima maior que zero.' }
@@ -573,7 +598,8 @@ export function solveFromMaxPayment({
     mode,
     balloons: normalizedBalloons,
     curveControls,
-    extraEffect
+    extraEffect,
+    correctionRate
   }
 
   const probe = principalCents => {

@@ -7,6 +7,8 @@ import { exportPdf } from './exportPdf'
 import { solveInBackground } from './solverClient'
 import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 import CostsEditor from './components/CostsEditor'
+import SacreOptions from './components/SacreOptions'
+import { parseTrInput } from './sacre'
 import { compareAmortizeInvest, DEFAULT_INVEST_INPUTS, parseInvestRate } from './invest'
 import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
@@ -317,6 +319,8 @@ export default function App() {
   const [formError, setFormError] = useState(null)
   const [costInputs, setCostInputs] = useState(EMPTY_COST_INPUTS)
   const [investInputs, setInvestInputs] = useState(DEFAULT_INVEST_INPUTS)
+  const [sacre, setSacre] = useState(false)
+  const [trRate, setTrRate] = useState('')
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -343,6 +347,10 @@ export default function App() {
     const nextA = overrides.scenarioA ?? scenarioA
     const nextB = overrides.scenarioB ?? scenarioB
     const useInverse = nextDirection === 'inverse' && nextMode !== 'ab'
+    // SACRE is a Price variant for direct calculation only (inverse and compare stay on Price/SAC)
+    const sacreOn = (overrides.sacre ?? sacre) && nextMode === 'price' && !useInverse
+    const engineMode = sacreOn ? 'sacre' : nextMode
+    const correctionRate = sacreOn ? parseTrInput(overrides.trRate ?? trRate) : 0
     const costs = parseCostInputs(overrides.costInputs ?? costInputs)
     const withCost = (out, rateValue) => {
       if (out.error) return out
@@ -361,7 +369,8 @@ export default function App() {
         down: out.down,
         months: nextMonths,
         rate: rateValue,
-        mode: nextMode,
+        mode: engineMode,
+        correctionRate,
         balloons: new Map(),
         curveControls: nextControls,
         extraEffect: nextEffect
@@ -504,7 +513,8 @@ export default function App() {
         down,
         months: nextMonths,
         rate,
-        mode: nextMode,
+        mode: engineMode,
+        correctionRate,
         balloons: balloonMap,
         extraEffect: nextEffect,
         curveControls: nextControls
@@ -519,7 +529,7 @@ export default function App() {
     setResult(withInvest(withCost(out, rate), rate))
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, investInputs])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, investInputs, sacre, trRate])
 
   useEffect(() => {
     const decoded = decodeState(window.location.search)
@@ -546,6 +556,8 @@ export default function App() {
       ? { ...decoded.scenarioA, balloons: cloneExtras(decoded.scenarioA.balloons || []) }
       : scenarioA
     const nextCosts = decoded.costInputs ?? costInputs
+    const nextSacre = decoded.sacre ?? sacre
+    const nextTr = decoded.trRate ?? trRate
     const nextB = decoded.scenarioB
       ? { ...decoded.scenarioB, balloons: cloneExtras(decoded.scenarioB.balloons || []) }
       : scenarioB
@@ -568,6 +580,8 @@ export default function App() {
     if (decoded.scenarioB) setScenarioB(nextB)
     if (decoded.startMonth) setStartMonth(decoded.startMonth)
     if (decoded.costInputs) setCostInputs(decoded.costInputs)
+    if (decoded.sacre != null) setSacre(decoded.sacre)
+    if (decoded.trRate != null) setTrRate(decoded.trRate)
 
     runSimulate({
       propertyValue: nextProperty,
@@ -585,7 +599,9 @@ export default function App() {
       curveControls: nextControls,
       scenarioA: nextA,
       scenarioB: nextB,
-      costInputs: nextCosts
+      costInputs: nextCosts,
+      sacre: nextSacre,
+      trRate: nextTr
     })
 
     // Allow URL writes after hydrate setters flush
@@ -617,14 +633,16 @@ export default function App() {
         scenarioA,
         scenarioB,
         startMonth,
-        costInputs
+        costInputs,
+        sacre,
+        trRate
       })
     }, 150)
     return () => clearTimeout(timer)
   }, [
     propertyValue, downPayment, months, interest, ratePeriod, mode, direction,
     solveFor, maxPayment, extraEffect, balloonEnabled, balloons, activePreset,
-    curveControls, scenarioA, scenarioB, startMonth, costInputs
+    curveControls, scenarioA, scenarioB, startMonth, costInputs, sacre, trRate
   ])
 
   useEffect(() => () => {
@@ -650,7 +668,9 @@ export default function App() {
       scenarioA,
       scenarioB,
       startMonth,
-      costInputs
+      costInputs,
+      sacre,
+      trRate
     })
     try {
       await navigator.clipboard.writeText(url)
@@ -860,6 +880,16 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {mode === 'price' && (
+            <SacreOptions
+              enabled={sacre}
+              disabled={isInverse}
+              onToggle={setSacre}
+              trValue={trRate}
+              onTrChange={setTrRate}
+            />
+          )}
 
           {isAb ? (
             <>

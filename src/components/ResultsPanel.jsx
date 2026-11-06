@@ -186,7 +186,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
           <div className="metric">
             <span>Primeira parcela regular</span>
             <strong>{brl.format(result.schedule[0]?.payment || 0)}</strong>
-            <small>{mode === 'growing' ? 'Parcela inicial ajustada' : 'Parcela mensal Price'}</small>
+            <small>{mode === 'growing' ? 'Parcela inicial ajustada' : result.totalCorrection > 0 ? 'SACRE: reajusta a cada 12 meses' : 'Parcela mensal Price'}</small>
           </div>
           <div className="metric">
             <span>Última parcela regular</span>
@@ -221,6 +221,13 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
               <span>Seguros e taxas</span>
               <strong>{brl.format(result.cost.totalCost)}</strong>
               <small>Iniciais, MIP, DFI e administração</small>
+            </div>
+          )}
+          {result.totalCorrection > 0 && (
+            <div className="metric">
+              <span>Correção TR acumulada</span>
+              <strong>{brl.format(result.totalCorrection)}</strong>
+              <small>Incorporada ao saldo mês a mês</small>
             </div>
           )}
         </div>
@@ -294,6 +301,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
                 <th>Amortização</th>
                 <th>Extra</th>
                 <th>Desembolso total</th>
+                {result.totalCorrection > 0 && <th>Correção TR</th>}
                 <th>Saldo</th>
               </tr>
             </thead>
@@ -317,6 +325,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
                   <td>{brl.format(row.amortization)}</td>
                   <td>{brl.format(row.balloon)}</td>
                   <td className="month-total">{brl.format(monthCashOut(row))}</td>
+                  {result.totalCorrection > 0 && <td>{brl.format(row.correction || 0)}</td>}
                   <td>{brl.format(row.balance)}</td>
                 </tr>
               ))}

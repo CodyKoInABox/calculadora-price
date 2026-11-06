@@ -2,6 +2,7 @@ import { CURVE_MAX, CURVE_MIN, curvePresets, parseMoney } from './math'
 import { currentYearMonth, number, parseYearMonthInput, yearMonthInputValue } from './format'
 import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
 import { EMPTY_COST_INPUTS, parseCostInputs } from './costs'
+import { parseTrInput } from './sacre'
 
 const MODES = new Set(['price', 'growing', 'compare', 'ab'])
 const RATE_PERIODS = new Set(['am', 'aa'])
@@ -239,6 +240,11 @@ export function encodeState(state) {
   }
 
   encodeCosts(state.costInputs, params)
+  if (mode === 'price' && state.sacre) {
+    params.set('sc', '1')
+    const trPercent = parseTrInput(state.trRate) * 100
+    if (trPercent > 0) params.set('tr', String(Math.round(trPercent * 1000) / 1000))
+  }
   encodeStartMonth(state, params)
   return params
 }
@@ -383,6 +389,16 @@ export function decodeState(search) {
   const costInputs = decodeCosts(params)
   if (costInputs) {
     out.costInputs = costInputs
+    touched = true
+  }
+
+  if (params.get('sc') === '1') {
+    out.sacre = true
+    touched = true
+  }
+  const tr = parseNum(params.get('tr'))
+  if (tr != null && tr > 0) {
+    out.trRate = String(tr).replace('.', ',')
     touched = true
   }
 

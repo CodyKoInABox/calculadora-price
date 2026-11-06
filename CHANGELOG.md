@@ -2,6 +2,18 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.0]
+
+### Adicionado
+- Sistema SACRE como variação da Price no cálculo direto: a parcela é recalculada a cada 12 meses sobre o saldo devedor, e a parcela fica constante dentro de cada ano.
+- Campo de correção do saldo (TR) em % a.m., aplicado todo mês antes dos juros. Sem TR, o SACRE é igual à Price.
+- Coluna "Correção TR" na tabela de amortização e métrica de correção acumulada, aparecendo só quando há TR.
+- Parâmetros `sc` e `tr` nos links de compartilhamento.
+
+### Notas
+- A última parcela absorve o resíduo da TR do último ano, por isso fica acima das demais.
+- SACRE não está disponível no limite de renda nem em Price × SAC.
+
 ## [1.3.0]
 
 ### Adicionado
