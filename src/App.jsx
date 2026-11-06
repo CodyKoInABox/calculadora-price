@@ -3,7 +3,7 @@ import { curvePresets, extrasToMap, parseMoney, simulateFinancing, annualToMonth
 import { formatMoneyInput, exportScheduleCsv, exportCompareCsv, exportAbCompareCsv, number, currentYearMonth } from './format'
 import { DEFAULT_DOWN, DEFAULT_INTEREST, DEFAULT_MAX_PAYMENT, DEFAULT_MONTHS, DEFAULT_PROPERTY, SCENARIO_B_DEFAULTS } from './defaults'
 import { applyUrlToHistory, buildShareUrl, decodeState, encodeState } from './urlState'
-import { exportPdf } from './exportPdf'
+import { exportAbReport, exportCompareReport, exportScheduleReport } from './exportPdf'
 import { solveInBackground } from './solverClient'
 import { computeCost, EMPTY_COST_INPUTS, parseCostInputs } from './costs'
 import CostsEditor from './components/CostsEditor'
@@ -11,6 +11,8 @@ import SacreOptions from './components/SacreOptions'
 import { parseTrInput } from './sacre'
 import { addSaved, exportFile, importFile, mergeImported, readSaved, removeSaved, writeSaved } from './savedScenarios'
 import ScenariosPanel from './components/ScenariosPanel'
+import MultiComparePanel from './components/MultiComparePanel'
+import { compareSavedScenarios } from './multiCompare'
 import { compareAmortizeInvest, DEFAULT_INVEST_INPUTS, parseInvestRate } from './invest'
 import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
@@ -366,6 +368,7 @@ export default function App() {
   const [trRate, setTrRate] = useState('')
   const [saved, setSaved] = useState(() => readSaved(getStorage()))
   const [savedError, setSavedError] = useState(null)
+  const [multiCompare, setMultiCompare] = useState(null)
   const curveRaf = useRef(null)
   const solveToken = useRef(0)
   const urlSyncReady = useRef(false)
@@ -673,6 +676,8 @@ export default function App() {
 
   const onDeleteScenario = id => setSaved(prev => removeSaved(prev, id))
 
+  const onCompareScenarios = selectedItems => setMultiCompare(compareSavedScenarios(selectedItems))
+
   const onExportScenarios = () => {
     saveBlob('cenarios-calculadora-price.json', exportFile(saved), 'application/json')
   }
@@ -890,6 +895,8 @@ export default function App() {
   const currentScenario = activeScenario === 'a' ? scenarioA : scenarioB
   const isAb = mode === 'ab'
   const isInverse = direction === 'inverse' && !isAb
+  const rateLabel = `${String(interest).replace('.', ',')}% ${ratePeriod === 'aa' ? 'a.a.' : 'a.m.'}`
+  const reportModeLabel = mode === 'growing' ? 'Curva' : sacre && !isInverse ? 'SACRE' : 'Price'
   const showProperty = !isInverse || solveFor === 'down'
   const showDown = !isInverse || solveFor === 'principal'
   const inverseSolved = isInverse
@@ -1214,6 +1221,7 @@ export default function App() {
             onDelete={onDeleteScenario}
             onExport={onExportScenarios}
             onImport={onImportScenarios}
+            onCompare={onCompareScenarios}
           />
 
           {formError && <p className="form-error" role="alert">{formError}</p>}
@@ -1227,6 +1235,7 @@ export default function App() {
         </aside>
 
         <div className={`results${solving ? ' is-solving' : ''}`} aria-busy={solving}>
+          {multiCompare && <MultiComparePanel items={multiCompare} onClose={() => setMultiCompare(null)} />}
           <div className="print-only print-banner">
             <strong>Calculadora PRICE</strong>
             <span>
@@ -1242,7 +1251,7 @@ export default function App() {
               startMonth={startMonth}
               onStartMonthChange={setStartMonth}
               onExport={() => exportAbCompareCsv(abResult?.a?.schedule, abResult?.b?.schedule, startMonth)}
-              onExportPdf={exportPdf}
+              onExportPdf={() => exportAbReport(abResult)}
             />
           )}
           {mode === 'compare' && (
@@ -1252,7 +1261,7 @@ export default function App() {
               startMonth={startMonth}
               onStartMonthChange={setStartMonth}
               onExport={() => exportCompareCsv(compareResult?.price?.schedule, compareResult?.sac?.schedule, startMonth)}
-              onExportPdf={exportPdf}
+              onExportPdf={() => exportCompareReport(compareResult, { rateLabel })}
             />
           )}
           {mode !== 'ab' && mode !== 'compare' && (
@@ -1264,7 +1273,7 @@ export default function App() {
               startMonth={startMonth}
               onStartMonthChange={setStartMonth}
               onExport={() => exportScheduleCsv(result?.schedule, startMonth)}
-              onExportPdf={exportPdf}
+              onExportPdf={() => exportScheduleReport(result, { startMonth, modeLabel: reportModeLabel, rateLabel })}
             />
           )}
         </div>

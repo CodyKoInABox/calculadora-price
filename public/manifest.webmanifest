@@ -1,0 +1,19 @@
+{
+  "name": "Calculadora PRICE × SAC",
+  "short_name": "PRICE × SAC",
+  "description": "Compare Price e SAC, CET, seguros e amortização antecipada. Funciona offline.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#524fa0",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
