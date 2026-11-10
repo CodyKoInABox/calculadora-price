@@ -12,6 +12,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 - Motor puro em `src/engine/` (`contract`, `prepayment`, `collection`, `dates`), com testes de valores calculados à mão.
 
 ### Alterado
+- Ferramentas de build atualizadas: Vite 8, Vitest 5 e `@vitejs/plugin-react` 6 (#19). Sem mudança de uso nem de cálculo.
 - Painel "Amortizar ou investir?" removido da tela principal. O módulo `src/engine/invest.js` continua na API do motor.
 - Textos de apoio abaixo de "Direção do cálculo" e "Modelo de parcelas" explicam cada opção.
 - Botões secundários com o mesmo estilo em toda a calculadora. Cards de resultado não quebram mais valores em duas linhas. Checkboxes deixaram de herdar a altura dos campos de texto.
