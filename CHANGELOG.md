@@ -7,6 +7,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 ### Adicionado
 - Menu de ajuda, aberto pelo botão "Ajuda" no topo. Explica cada campo, os modelos de parcela, o que significa cada resultado (incluindo CET, piso de juros e prova real), pagamentos extras, seguros e taxas, cenários e limites da simulação. Conteúdo em `src/help.js`.
 - Prova real no resultado. Confere três identidades a partir do cronograma: amortizado + saldo devedor = financiado (+ correção TR); total pago + saldo devedor = financiado + juros (+ correção TR); e, no fim do prazo, juros = total pago − financiado. Dá para escolher o mês da conferência. Lógica em `src/engine/proof.js`, com testes de valores conhecidos e propriedades.
+- Tela de antecipação de parcelas (`#antecipacao`): marcar parcelas como pagas, em aberto ou a antecipar, ou amortizar um valor ou o saldo quitado na data. Escolha entre reduzir prazo ou reduzir parcela, com Price, SAC ou Curva, e pró-rata dos juros por dias corridos ou por parcelas. Mostra memória de cálculo e nova tabela.
+- Tela de cobrança e vencimento antecipado (`#cobranca`): checagem dos requisitos (mínimo de parcelas vencidas e prazo de notificação, configuráveis na tela), abatimento dos juros futuros pelo saldo presente da tabela, multa e juros de mora, com memória de cálculo. Multa acima de 2% mostra aviso (CDC, art. 52, §1º) sem bloquear o cálculo.
+- Motor puro em `src/engine/` (`contract`, `prepayment`, `collection`, `dates`), com testes de valores calculados à mão.
 
 ### Alterado
 - Painel "Amortizar ou investir?" removido da tela principal. O módulo `src/engine/invest.js` continua na API do motor.
