@@ -24,7 +24,7 @@ describe('help content', () => {
   })
 
   it('explains the results and models shown on screen', () => {
-    for (const term of ['CET (custo efetivo total)', 'Prova real', 'Piso de juros', 'SACRE', 'Price × SAC', 'Total pago']) {
+    for (const term of ['CET (custo efetivo total)', 'Saldo devedor', 'Piso de juros', 'SACRE', 'Price × SAC', 'Total pago']) {
       expect(allTerms.some(name => name.includes(term))).toBe(true)
     }
   })

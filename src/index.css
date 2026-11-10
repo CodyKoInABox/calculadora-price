@@ -784,7 +784,6 @@ tr.balloon-row td { background: #fff9ee; }
   .hero-meta { justify-content: flex-start; }
   .compare-grid { grid-template-columns: 1fr; }
   .cards { grid-template-columns: 1fr; }
-  .proof-summary { grid-template-columns: 1fr; }
   .summary-top { flex-direction: column; }
   .site-footer { align-items: flex-start; }
   .field-row { grid-template-columns: 1fr; }
@@ -1047,66 +1046,6 @@ tr.balloon-row td { background: #fff9ee; }
 
 /* Hints under the direction and model selectors */
 .footnote.mode-hint { margin: 8px 2px 0; }
-
-/* Prova real */
-.proof-card { padding: 24px; display: grid; gap: 16px; }
-.proof-head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-.proof-status {
-  border-radius: 999px;
-  padding: 7px 12px;
-  background: #eaf8f2;
-  color: var(--success);
-  font-size: 12px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.proof-status.fail { background: #fdecec; color: var(--danger); }
-.proof-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-.proof-controls label { margin: 0; color: var(--muted); }
-.proof-controls input { width: 96px; height: 36px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; }
-.proof-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.proof-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.proof-checks li {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #fbfbfe;
-}
-.proof-checks li.fail { border-color: #f6c9c4; background: #fdf5f5; }
-.proof-check-mark {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #eaf8f2;
-  color: var(--success);
-  font-size: 12px;
-  font-weight: 800;
-}
-.proof-checks li.fail .proof-check-mark { background: #fdecec; color: var(--danger); }
-.proof-check-body { display: grid; gap: 4px; min-width: 0; }
-.proof-check-body > span { color: var(--muted); font-size: 12px; }
-.proof-check-body > strong { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-
 
 /* Menu de ajuda */
 .help-trigger { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
