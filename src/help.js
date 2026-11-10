@@ -121,10 +121,6 @@ export const HELP_SECTIONS = [
       {
         term: 'Piso de juros',
         text: 'Aparece quando a parcela de um mês da curva é menor que os juros do mês. Para não gerar amortização negativa, a parcela é elevada até o valor dos juros.'
-      },
-      {
-        term: 'Prova real',
-        text: 'Confere as contas da tabela: o que foi amortizado mais o saldo devedor é igual ao valor financiado (mais a TR, se houver); o total pago mais o saldo é igual ao financiado mais os juros. Diferenças de até 1 centavo são arredondamento.'
       }
     ]
   },
