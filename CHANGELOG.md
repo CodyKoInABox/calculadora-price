@@ -2,6 +2,16 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Adicionado
+- Prova real no resultado. Confere três identidades a partir do cronograma: amortizado + saldo devedor = financiado (+ correção TR); total pago + saldo devedor = financiado + juros (+ correção TR); e, no fim do prazo, juros = total pago − financiado. Dá para escolher o mês da conferência. Lógica em `src/engine/proof.js`, com testes de valores conhecidos e propriedades.
+
+### Alterado
+- Painel "Amortizar ou investir?" removido da tela principal. O módulo `src/engine/invest.js` continua na API do motor.
+- Textos de apoio abaixo de "Direção do cálculo" e "Modelo de parcelas" explicam cada opção.
+- Botões secundários com o mesmo estilo em toda a calculadora. Cards de resultado não quebram mais valores em duas linhas. Checkboxes deixaram de herdar a altura dos campos de texto.
+
 ## [2.0.0]
 
 ### Alterado (interno, sem mudança de uso)

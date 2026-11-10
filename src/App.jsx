@@ -13,7 +13,6 @@ import { addSaved, exportFile, importFile, mergeImported, readSaved, removeSaved
 import ScenariosPanel from './components/ScenariosPanel'
 import MultiComparePanel from './components/MultiComparePanel'
 import { compareSavedScenarios } from './multiCompare'
-import { compareAmortizeInvest, DEFAULT_INVEST_INPUTS, parseInvestRate } from './engine/invest'
 import IncomeLimit from './components/IncomeLimit'
 import CurveEditor from './components/CurveEditor'
 import ResultsPanel from './components/ResultsPanel'
@@ -24,6 +23,18 @@ import InterestField from './components/InterestField'
 import ExtrasEditor from './components/ExtrasEditor'
 import { DEFAULT_APP_STATE, cloneExtras, cloneScenario, defaultScenarioA, defaultScenarioB, getStorage, prepareScheduleInputs, runScenario, toMonthlyRate, newExtra } from './appState'
 import { saveBlob } from './download'
+
+const DIRECTION_HINTS = {
+  forward: 'Informe imóvel, entrada, prazo e juros para ver a parcela.',
+  inverse: 'Informe a parcela máxima que cabe no orçamento e veja quanto dá para financiar.'
+}
+
+const MODE_HINTS = {
+  price: 'Parcelas fixas: os juros caem e a amortização cresce a cada mês.',
+  growing: 'Você desenha se as parcelas sobem ou descem ao longo do prazo.',
+  compare: 'Mostra a Tabela Price e a SAC no mesmo imóvel, taxa e prazo.',
+  ab: 'Compara dois cenários independentes, cada um com taxa, prazo e extras próprios.'
+}
 
 export default function App() {
   const [propertyValue, setPropertyValue] = useState(number.format(DEFAULT_PROPERTY))
@@ -51,7 +62,6 @@ export default function App() {
   const [solving, setSolving] = useState(false)
   const [formError, setFormError] = useState(null)
   const [costInputs, setCostInputs] = useState(EMPTY_COST_INPUTS)
-  const [investInputs, setInvestInputs] = useState(DEFAULT_INVEST_INPUTS)
   const [sacre, setSacre] = useState(false)
   const [trRate, setTrRate] = useState('')
   const [saved, setSaved] = useState(() => readSaved(getStorage()))
@@ -97,29 +107,6 @@ export default function App() {
           contractAnnual: monthlyToAnnual(rateValue)
         }
       }
-    }
-    const withInvest = (out, rateValue) => {
-      if (out.error || balloonMap.size === 0) return out
-      const base = simulateFinancing({
-        property: out.property,
-        down: out.down,
-        months: nextMonths,
-        rate: rateValue,
-        mode: engineMode,
-        correctionRate,
-        balloons: new Map(),
-        curveControls: nextControls,
-        extraEffect: nextEffect
-      })
-      const invest = compareAmortizeInvest({
-        result: out,
-        baseResult: base,
-        contributions: balloonMap,
-        months: nextMonths,
-        annualRate: parseInvestRate(investInputs.rate),
-        taxed: investInputs.taxed
-      })
-      return invest ? { ...out, invest } : out
     }
     const token = ++solveToken.current
     const isStale = () => token !== solveToken.current
@@ -262,10 +249,10 @@ export default function App() {
       return
     }
     if (useInverse) syncSolvedFields(out)
-    setResult(withInvest(withCost(out, rate), rate))
+    setResult(withCost(out, rate))
     setCompareResult(null)
     setAbResult(null)
-  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, investInputs, sacre, trRate])
+  }, [mode, curveControls, balloons, balloonEnabled, extraEffect, months, propertyValue, downPayment, interest, ratePeriod, scenarioA, scenarioB, direction, solveFor, maxPayment, costInputs, sacre, trRate])
 
   useEffect(() => {
     writeSaved(getStorage(), saved)
@@ -638,6 +625,7 @@ export default function App() {
                   A partir da parcela
                 </button>
               </div>
+              <p className="footnote mode-hint">{DIRECTION_HINTS[direction]}</p>
             </div>
           )}
 
@@ -667,6 +655,7 @@ export default function App() {
                 A vs B
               </button>
             </div>
+            <p className="footnote mode-hint">{MODE_HINTS[mode]}</p>
           </div>
 
           {mode === 'price' && (
@@ -955,8 +944,6 @@ export default function App() {
           {mode !== 'ab' && mode !== 'compare' && (
             <ResultsPanel
               result={result}
-              investInputs={investInputs}
-              onInvestChange={patch => setInvestInputs(prev => ({ ...prev, ...patch }))}
               mode={mode}
               startMonth={startMonth}
               onStartMonthChange={setStartMonth}

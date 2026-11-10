@@ -3,7 +3,7 @@ import Chart from '../charts'
 import { brl, formatInstallmentMonth, monthCashOut, number, percentAa } from '../format'
 import { ChartExpandBackdrop, ChartExpandButton, useChartExpand } from './useChartExpand.jsx'
 import StartMonthPicker from './StartMonthPicker.jsx'
-import InvestPanel from './InvestPanel.jsx'
+import ProofCheck from './ProofCheck.jsx'
 
 function cetNote(cost) {
   const contract = percentAa(cost.contractAnnual)
@@ -12,7 +12,7 @@ function cetNote(cost) {
   return `Contratada: ${contract} · +${spread} p.p. por seguros e taxas`
 }
 
-export default function ResultsPanel({ result, mode, startMonth, onStartMonthChange, onExport, onExportPdf, investInputs, onInvestChange }) {
+export default function ResultsPanel({ result, mode, startMonth, onStartMonthChange, onExport, onExportPdf }) {
   const paymentRef = useRef(null)
   const breakdownRef = useRef(null)
   const paymentChartRef = useRef(null)
@@ -243,9 +243,7 @@ export default function ResultsPanel({ result, mode, startMonth, onStartMonthCha
         )}
       </section>
 
-      {result.invest && (
-        <InvestPanel invest={result.invest} inputs={investInputs} onChange={onInvestChange} />
-      )}
+      <ProofCheck result={result} />
 
       <div className="visual-grid">
         {paymentExpand.expanded && <ChartExpandBackdrop onClose={paymentExpand.close} />}
