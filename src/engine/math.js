@@ -268,14 +268,94 @@ function evaluateCurvePlan(balanceAtStart, startMonth, endMonth, rate, weights, 
   return { plan, balance }
 }
 
-function buildCurvePlan(balance, startMonth, endMonth, rate, weights) {
+const MAX_CURVE_SCALE = Math.floor(Number.MAX_SAFE_INTEGER / 2)
+
+/**
+ * Leftover balance after the curve, without building the plan. Same checks and
+ * arithmetic as evaluateCurvePlan, so the two always agree on balance and errors.
+ */
+function curveResidual(balanceAtStart, startMonth, endMonth, rate, weights, scale) {
+  let balance = balanceAtStart
+
+  for (let month = startMonth; month <= endMonth && balance > 0; month++) {
+    const interest = roundedInterest(balance, rate)
+    const weighted = Math.round(weights[month - 1] * scale)
+    if (interest === null || !Number.isSafeInteger(weighted) || weighted < 0) {
+      return { error: 'O cálculo da curva excedeu o limite numérico.' }
+    }
+    const due = addSafe(balance, interest)
+    if (due === null) return { error: 'O cálculo da curva excedeu o limite numérico.' }
+    balance = due - Math.min(due, Math.max(weighted, interest))
+  }
+
+  return { balance }
+}
+
+/**
+ * Smallest integer scale >= lowerBound whose residual is <= 0, found by galloping
+ * from lowerBound and then bisecting. The residual is nonincreasing in scale, so this
+ * is the same scale the doubling search returns whenever lowerBound does not exceed it.
+ * Returns null if any evaluation fails, so the caller can fall back to the full search.
+ */
+function minimalCurveScale(balance, startMonth, endMonth, rate, weights, lowerBound) {
+  const residualAt = scale => curveResidual(balance, startMonth, endMonth, rate, weights, scale)
+
+  let low = lowerBound
+  let probe = residualAt(low)
+  if (probe.error) return null
+  if (probe.balance <= 0) return low
+
+  let step = 1
+  let high
+  for (;;) {
+    const candidate = low + step
+    if (candidate > MAX_CURVE_SCALE) return null
+    probe = residualAt(candidate)
+    if (probe.error) return null
+    if (probe.balance <= 0) {
+      high = candidate
+      break
+    }
+    low = candidate
+    step *= 2
+  }
+
+  while (low + 1 < high) {
+    const middle = low + Math.floor((high - low) / 2)
+    probe = residualAt(middle)
+    if (probe.error) return null
+    if (probe.balance > 0) low = middle
+    else high = middle
+  }
+
+  return high
+}
+
+/**
+ * The doubling search only evaluates scales up to the next power of two above the answer.
+ * If the principal's interest and that largest scale's weighted payments are safe integers,
+ * none of those evaluations can fail, so the fast result equals the doubling search's result.
+ */
+function curveSearchIsSafe(balance, rate, scale) {
+  const interest = roundedInterest(balance, rate)
+  if (interest === null || addSafe(balance, interest) === null) return false
+
+  let high = 1
+  while (high < scale) high *= 2
+  return (
+    high <= MAX_CURVE_SCALE &&
+    Number.isSafeInteger(Math.round(CURVE_MAX * high))
+  )
+}
+
+function searchCurveScaleByDoubling(balance, startMonth, endMonth, rate, weights) {
   let low = 0
   let high = 1
   let evaluated = evaluateCurvePlan(balance, startMonth, endMonth, rate, weights, high)
   if (evaluated.error) return evaluated
 
   while (evaluated.balance > 0) {
-    if (high > Math.floor(Number.MAX_SAFE_INTEGER / 2)) {
+    if (high > MAX_CURVE_SCALE) {
       return { error: 'Não foi possível calcular uma curva financeira finita.' }
     }
     high *= 2
@@ -291,7 +371,46 @@ function buildCurvePlan(balance, startMonth, endMonth, rate, weights) {
     else high = middle
   }
 
-  return evaluateCurvePlan(balance, startMonth, endMonth, rate, weights, high)
+  const final = evaluateCurvePlan(balance, startMonth, endMonth, rate, weights, high)
+  if (final.error) return final
+  return { plan: final.plan, scale: high }
+}
+
+function buildCurvePlan(balance, startMonth, endMonth, rate, weights, lowerBound = 1) {
+  const scale = minimalCurveScale(balance, startMonth, endMonth, rate, weights, lowerBound)
+  if (scale !== null && curveSearchIsSafe(balance, rate, scale)) {
+    const final = evaluateCurvePlan(balance, startMonth, endMonth, rate, weights, scale)
+    if (!final.error) return { plan: final.plan, scale }
+  }
+  return searchCurveScaleByDoubling(balance, startMonth, endMonth, rate, weights)
+}
+
+/**
+ * For a fixed term, rate and curve, the minimal curve scale never decreases as the
+ * principal grows. A scale recorded for a smaller principal is therefore a valid lower
+ * bound for a larger one. Hints must not be shared across different terms, rates or curves.
+ */
+function createCurveHints() {
+  return { principals: [], scales: [] }
+}
+
+function curveHintFloor(hints, principal) {
+  let low = 0
+  let high = hints.principals.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (hints.principals[middle] <= principal) low = middle + 1
+    else high = middle
+  }
+  return low === 0 ? 1 : hints.scales[low - 1]
+}
+
+function recordCurveHint(hints, principal, scale) {
+  let index = hints.principals.length
+  while (index > 0 && hints.principals[index - 1] > principal) index--
+  if (index > 0 && hints.principals[index - 1] === principal) return
+  hints.principals.splice(index, 0, principal)
+  hints.scales.splice(index, 0, scale)
 }
 
 function capMonthPayments(regular, balloon, amountDue) {
@@ -356,7 +475,11 @@ export function maxRegularPayment(schedule) {
 /**
  * @param {{ property: number, down: number, months: number, rate: number, mode: 'price'|'growing'|'sac', balloons: Map<number, number>, curveControls: number[], extraEffect?: 'payment'|'term' }} input
  */
-export function simulateFinancing({
+export function simulateFinancing(input) {
+  return runSimulation(input, null)
+}
+
+function runSimulation({
   property,
   down,
   months,
@@ -366,7 +489,7 @@ export function simulateFinancing({
   curveControls,
   extraEffect = 'payment',
   correctionRate = 0
-}) {
+}, curveHints) {
   const propertyCents = toCents(property)
   const downCents = toCents(down)
   if (propertyCents === null || downCents === null) return { error: MONEY_ERROR }
@@ -400,9 +523,11 @@ export function simulateFinancing({
     return { error: 'Não foi possível calcular uma amortização SAC finita.' }
   }
   if (mode === 'growing') {
-    const built = buildCurvePlan(principal, 1, months, rate, weights)
+    const lowerBound = curveHints ? curveHintFloor(curveHints, principal) : 1
+    const built = buildCurvePlan(principal, 1, months, rate, weights, lowerBound)
     if (built.error) return { error: built.error }
     curveContract = built.plan
+    if (curveHints) recordCurveHint(curveHints, principal, built.scale)
   }
 
   const schedule = []
@@ -602,23 +727,24 @@ export function solveFromMaxPayment({
     correctionRate
   }
 
+  const curveHints = createCurveHints()
   const probe = principalCents => {
     if (principalCents <= 0) return { schedule: [], principal: 0 }
     if (solveFor === 'down') {
-      return simulateFinancing({
+      return runSimulation({
         ...shared,
         property: fromCents(propertyCents),
         down: fromCents(propertyCents - principalCents)
-      })
+      }, curveHints)
     }
 
     const totalProperty = addSafe(downCents, principalCents)
     if (totalProperty === null) return { error: MONEY_ERROR }
-    return simulateFinancing({
+    return runSimulation({
       ...shared,
       property: fromCents(totalProperty),
       down: fromCents(downCents)
-    })
+    }, curveHints)
   }
 
   const isFeasible = principalCents => {
