@@ -19,6 +19,7 @@ import ResultsPanel from './components/ResultsPanel'
 import ComparePanel from './components/ComparePanel'
 import AbComparePanel from './components/AbComparePanel'
 import { AuthorCredit, FeedbackLink, SiteFooter } from './components/SiteMeta'
+import HelpDialog, { HelpTrigger } from './components/HelpDialog'
 import InterestField from './components/InterestField'
 import ExtrasEditor from './components/ExtrasEditor'
 import { DEFAULT_APP_STATE, cloneExtras, cloneScenario, defaultScenarioA, defaultScenarioB, getStorage, prepareScheduleInputs, runScenario, toMonthlyRate, newExtra } from './appState'
@@ -58,6 +59,7 @@ export default function App() {
   const [compareResult, setCompareResult] = useState(null)
   const [abResult, setAbResult] = useState(null)
   const [shareCopied, setShareCopied] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [startMonth, setStartMonth] = useState(currentYearMonth)
   const [solving, setSolving] = useState(false)
   const [formError, setFormError] = useState(null)
@@ -591,8 +593,10 @@ export default function App() {
         </div>
         <div className="hero-meta">
           <AuthorCredit />
+          <HelpTrigger onClick={() => setHelpOpen(true)} />
           <FeedbackLink />
         </div>
+        <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </header>
 
       <section className="workspace">

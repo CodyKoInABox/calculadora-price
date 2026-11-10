@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 ## [Não lançado]
 
 ### Adicionado
+- Menu de ajuda, aberto pelo botão "Ajuda" no topo. Explica cada campo, os modelos de parcela, o que significa cada resultado (incluindo CET, piso de juros e prova real), pagamentos extras, seguros e taxas, cenários e limites da simulação. Conteúdo em `src/help.js`.
 - Prova real no resultado. Confere três identidades a partir do cronograma: amortizado + saldo devedor = financiado (+ correção TR); total pago + saldo devedor = financiado + juros (+ correção TR); e, no fim do prazo, juros = total pago − financiado. Dá para escolher o mês da conferência. Lógica em `src/engine/proof.js`, com testes de valores conhecidos e propriedades.
 
 ### Alterado
